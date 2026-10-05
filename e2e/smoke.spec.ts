@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('a warband survives a reload', async ({ page }) => {
   await page.goto('/');
@@ -87,11 +87,13 @@ test('a model id containing quote and bracket characters does not break the edit
   };
   await page.goto('/');
   page.on('dialog', (d) => d.accept());
-  await page.locator('input[type=file]').setInputFiles({
-    name: 'odd.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(warband)),
-  });
+  await page.locator('input[type=file]').evaluate((el, json) => {
+    const input = el as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([json], 'odd.json', { type: 'application/json' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+  }, JSON.stringify(warband));
   await page.getByRole('link', { name: 'Odd Ids' }).click();
   await expect(page.getByLabel('Model name').first()).toHaveValue('Odd Id');
   await expect(page.locator('.panel .total').filter({ hasText: /pts$/ }).first()).toBeVisible();
@@ -152,4 +154,49 @@ test('library buttons name the warband for screen readers', async ({ page }) => 
   for (const verb of ['Print', 'Duplicate', 'Rename', 'Export', 'Delete']) {
     await expect(page.getByRole('button', { name: `${verb} “Labelled”` })).toBeVisible();
   }
+});
+
+const breakStorage = (page: Page) =>
+  page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    };
+  });
+
+test('a failed save is shown and Print asks before showing the stale version', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await breakStorage(page);
+  await page.getByLabel('Warband name').fill('Unsaved');
+  const status = page.locator('[data-save-status]');
+  await expect(status).toContainText('Could not save');
+  await expect(status).toHaveCSS('padding-left', '0px');
+
+  const messages: string[] = [];
+  page.once('dialog', (d) => {
+    messages.push(d.message());
+    void d.dismiss();
+  });
+  await page.getByRole('button', { name: 'Print' }).click();
+  await expect.poll(() => messages.length).toBe(1);
+  expect(messages[0]).toContain('last saved version');
+  await expect(page).not.toHaveURL(/print/);
+  await expect(status).toContainText('Could not save');
+
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Print' }).click();
+  await expect(page).toHaveURL(/print/);
+});
+
+test('the library shows a message when a save fails', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.goto('/#/');
+  await expect(page.getByRole('button', { name: /^Duplicate/ })).toBeVisible();
+  await breakStorage(page);
+  await page.getByRole('button', { name: /^Duplicate/ }).click();
+  await expect(page.locator('#banner')).toContainText('could not be saved');
+  await page.getByRole('button', { name: 'New warband', exact: true }).click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator('#banner .banner-warning')).toHaveCount(1);
 });

@@ -107,6 +107,9 @@ button.primary {
 .warnings .warning {
   color: var(--warn);
 }
+.status-warning {
+  color: var(--warn);
+}
 .warnings .info {
   color: var(--info);
 }

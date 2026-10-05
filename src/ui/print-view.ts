@@ -127,7 +127,7 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
     pages.push(h('div', { class: 'sheet' }, ...cards.slice(i, i + 8)));
   }
 
-  const status = h('span', { class: 'warnings warning', 'data-overflow': true });
+  const status = h('span', { class: 'status-warning', 'data-overflow': true });
   root.append(
     h(
       'div',

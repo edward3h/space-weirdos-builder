@@ -370,13 +370,21 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         { class: 'toolbar' },
         h('a', { href: '#/', onClick: flush }, '← Library'),
         h('span', { class: 'spacer' }),
-        h('span', { class: 'warnings warning', 'data-save-status': true }),
+        h('span', { class: 'status-warning', 'data-save-status': true }),
         h(
           'button',
           {
             class: 'primary',
             onClick: () => {
               flush();
+              if (saveFailed) doSave(); // try again before deciding
+              if (
+                saveFailed &&
+                !confirm(
+                  'Your changes could not be saved, so the print view would show the last saved version. Print anyway?',
+                )
+              )
+                return;
               location.hash = `#/wb/${state.id}/print`;
             },
           },

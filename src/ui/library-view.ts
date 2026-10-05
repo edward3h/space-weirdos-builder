@@ -1,7 +1,21 @@
 import { newWarband } from '../model/factory';
 import { warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
+import { showBanner } from './banner';
 import { h } from './dom';
+
+const SAVE_FAILED = 'Your changes could not be saved. Use Export to keep a copy.';
+
+/** Run a library write, showing a message instead of failing silently. Returns whether it worked. */
+function tryWrite(write: () => void): boolean {
+  try {
+    write();
+    return true;
+  } catch {
+    showBanner(SAVE_FAILED);
+    return false;
+  }
+}
 
 function download(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -38,7 +52,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             class: 'primary',
             onClick: () => {
               const wb = newWarband();
-              lib.save(wb);
+              if (!tryWrite(() => lib.save(wb))) return;
               location.hash = `#/wb/${wb.id}`;
             },
           },
@@ -103,7 +117,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
               {
                 'aria-label': `Duplicate “${wb.name}”`,
                 onClick: () => {
-                  lib.duplicate(wb.id);
+                  tryWrite(() => lib.duplicate(wb.id));
                   draw();
                 },
               },
@@ -117,7 +131,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
                   const name = prompt('Rename warband', wb.name);
                   if (name === null) return;
                   wb.name = name;
-                  lib.save(wb);
+                  tryWrite(() => lib.save(wb));
                   draw();
                 },
               },

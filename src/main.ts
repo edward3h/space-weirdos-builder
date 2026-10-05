@@ -4,19 +4,14 @@ import { Library } from './storage/library';
 import { flushEditor, renderEditor } from './ui/editor-view';
 import { renderLibrary } from './ui/library-view';
 import { renderPrint } from './ui/print-view';
-import { h } from './ui/dom';
+import { showBanner } from './ui/banner';
 
 const kv = browserKV();
 const lib = new Library(kv ?? new MemoryKV());
 
-const banner = document.querySelector<HTMLElement>('#banner')!;
 if (!kv) {
-  banner.append(
-    h(
-      'div',
-      { class: 'banner-warning' },
-      'Browser storage is unavailable, so changes will not be kept after you close or reload this page. Use Export to keep a copy.',
-    ),
+  showBanner(
+    'Browser storage is unavailable, so changes will not be kept after you close or reload this page. Use Export to keep a copy.',
   );
 }
 
