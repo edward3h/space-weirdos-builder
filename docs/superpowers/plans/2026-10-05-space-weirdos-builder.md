@@ -88,12 +88,10 @@ Expected: `Switched to a new branch 'feature/builder'`
 
 - [ ] **Step 3: Install dependencies**
 
-This machine has Node 18.16, which the newest Vite and Vitest no longer support, so pin the last majors that do (check `node -v` first; if Node is 20.19 or later, unpinned latest is fine):
+The project is pinned to Node 22 by `mise.toml` (already created and committed; the machine's global default is Node 18, which the newest Vite no longer supports). In a normal shell with mise activated, `node -v` shows v22 inside this directory. In a shell that was started before mise saw this directory, run every command as `mise exec -- <command>` (for example `mise exec -- npm install ...`).
 
-Run: `npm install -D vite@5 vitest@2 typescript prettier @playwright/test@1.49`
-Expected: installs without errors; `package-lock.json` created. If `@playwright/test@1.49` is not installable, use the newest 1.x that supports Node 18 and say which in the commit message.
-
-Also change `import { defineConfig } from 'vitest/config';` only if the installed Vitest version needs it; the plan's `vite.config.ts` works with Vitest 2.
+Run: `mise exec -- npm install -D vite vitest typescript prettier @playwright/test`
+Expected: installs without errors; `package-lock.json` created. Check `mise exec -- node -v` prints v22 first.
 
 - [ ] **Step 4: Create config files**
 
