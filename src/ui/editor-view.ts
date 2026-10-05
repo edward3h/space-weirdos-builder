@@ -110,7 +110,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
 
   /**
    * Chosen items for one category, each in its own drop-down (names only) with its details
-   * underneath, plus an "Add" drop-down for the next one. Reads and writes the selection
+   * underneath, plus a "+" button that reveals a drop-down for the next one. Reads and writes the selection
    * through get/set and redraws only itself, so the rest of the editor keeps its focus and
    * scroll position. Chosen items that are not in `items` (expansion switched off, unknown
    * ids) stay listed, so nothing is silently dropped.
@@ -128,6 +128,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     )[kind];
     const names = items.map((i) => ({ value: i.id, label: i.name }));
     const box = h('div', { class: 'picker' });
+    let adding = false;
 
     const details = (item: Item | undefined, id: string) => {
       if (!item)
@@ -183,13 +184,45 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           details(item, id),
         );
       });
-      const add = select([{ value: '', label: `+ Add ${noun}…` }, ...names], '', (v) => {
-        if (v === '') return;
-        set([...get(), v]);
-        draw();
-      });
-      add.setAttribute('aria-label', `Add ${noun}`);
-      box.replaceChildren(...rows, add);
+      // A "+" button; pressing it shows a drop-down of names to choose from
+      let adder: HTMLElement;
+      if (adding) {
+        const choose = select([{ value: '', label: `Choose ${noun}…` }, ...names], '', (v) => {
+          adding = false;
+          if (v !== '') set([...get(), v]);
+          draw();
+        });
+        choose.setAttribute('aria-label', `Choose ${noun}`);
+        choose.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            adding = false;
+            draw();
+          }
+        });
+        choose.addEventListener('blur', () => {
+          if (!adding) return;
+          adding = false;
+          draw();
+        });
+        adder = choose;
+      } else {
+        adder = h(
+          'button',
+          {
+            type: 'button',
+            class: 'add',
+            title: `Add ${noun}`,
+            'aria-label': `Add ${noun}`,
+            onClick: () => {
+              adding = true;
+              draw();
+              box.querySelector<HTMLElement>('select[aria-label^="Choose"]')?.focus();
+            },
+          },
+          '+',
+        );
+      }
+      box.replaceChildren(...rows, adder);
     };
     draw();
     return box;

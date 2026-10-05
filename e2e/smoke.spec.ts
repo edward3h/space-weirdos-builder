@@ -1,4 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+/** Press the "+" button of a category, then choose an item from the drop-down that appears. */
+async function addItem(model: Locator, noun: string, value: string) {
+  await model.getByRole('button', { name: `Add ${noun}` }).click();
+  await model.getByLabel(`Choose ${noun}`).selectOption(value);
+}
 
 test('a warband survives a reload', async ({ page }) => {
   await page.goto('/');
@@ -215,27 +221,36 @@ test('weapons, equipment and powers are chosen from drop-downs that show details
   const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
 
   // The drop-down shows names only: no costs or notes in the option text
-  const optionTexts = await model.getByLabel('Add equipment').locator('option').allTextContents();
+  await expect(model.getByLabel('Choose equipment')).toHaveCount(0); // hidden until "+" is pressed
+  await model.getByRole('button', { name: 'Add equipment' }).click();
+  const optionTexts = await model
+    .getByLabel('Choose equipment')
+    .locator('option')
+    .allTextContents();
+  await model.getByLabel('Choose equipment').press('Escape'); // cancels without adding
+  await expect(model.getByLabel('Choose equipment')).toHaveCount(0);
+  await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveCount(0);
   expect(optionTexts).toContain('Heavy Armor');
   expect(optionTexts.every((t) => !/\d|\+1/.test(t))).toBe(true);
 
   // Choosing an item shows its details and updates the cost (leader base cost is 7)
-  await model.getByLabel('Add equipment').selectOption('heavy-armor');
+  await addItem(model, 'equipment', 'heavy-armor');
   await expect(model.locator('.details', { hasText: '+1 to Def rolls' })).toContainText(
     '1 pt · passive',
   );
   await expect(model.getByText('8 pts', { exact: true })).toBeVisible();
-  await expect(model.getByLabel('Add equipment')).toHaveValue('');
+  await expect(model.getByLabel('Choose equipment')).toHaveCount(0); // closes after a choice
+  await expect(model.getByRole('button', { name: 'Add equipment' })).toBeVisible();
 
   // Weapons and powers work the same way
-  await model.getByLabel('Add ranged weapon').selectOption('shotgun');
+  await addItem(model, 'ranged weapon', 'shotgun');
   await expect(model.locator('.details', { hasText: 'Range ≤ 1 stick' })).toBeVisible();
-  await model.getByLabel('Add psychic power').selectOption('fear');
+  await addItem(model, 'psychic power', 'fear');
   await expect(model.locator('.details', { hasText: 'must move 1 stick away' })).toBeVisible();
 
   // A third equipment item is allowed but warned about (a leader has 2 slots)
-  await model.getByLabel('Add equipment').selectOption('grenade');
-  await model.getByLabel('Add equipment').selectOption('jump-pack');
+  await addItem(model, 'equipment', 'grenade');
+  await addItem(model, 'equipment', 'jump-pack');
   await expect(model.getByText(/has 3 equipment, max 2/)).toBeVisible();
 
   // Remove it again: the warning goes
@@ -268,7 +283,7 @@ test('an expansion item stays chosen, and flagged, when the expansion is switche
   await page.getByRole('button', { name: 'New warband' }).click();
   await page.getByLabel('Include fan expansion').check();
   const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
-  await model.getByLabel('Add equipment').selectOption('comms-unit');
+  await addItem(model, 'equipment', 'comms-unit');
   await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveValue('comms-unit');
 
   await page.getByLabel('Include fan expansion').uncheck();
@@ -278,6 +293,7 @@ test('an expansion item stays chosen, and flagged, when the expansion is switche
   await expect(chosen.locator('option:checked')).toHaveText('Comms Unit (expansion)');
   await expect(model.getByText(/Comms Unit is an expansion item/)).toBeVisible();
   // And it is no longer offered for new choices
-  const offered = await model.getByLabel('Add equipment').locator('option').allTextContents();
+  await model.getByRole('button', { name: 'Add equipment' }).click();
+  const offered = await model.getByLabel('Choose equipment').locator('option').allTextContents();
   expect(offered).not.toContain('Comms Unit');
 });
