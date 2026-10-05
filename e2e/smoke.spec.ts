@@ -52,8 +52,14 @@ test('print view gives equal-sized cards, eight to a page, in portrait', async (
   await expect(page.locator('.sheet').nth(0).locator('.card')).toHaveCount(8);
   await expect(page.locator('.sheet').nth(1).locator('.card')).toHaveCount(3);
 
-  const pdf = await page.pdf({ preferCSSPageSize: false, format: 'Letter' });
-  expect(pdf.byteLength).toBeGreaterThan(1000);
+  // 11 cards on 8-up sheets must come out as exactly 2 pages, on both common paper sizes
+  for (const format of ['Letter', 'A4'] as const) {
+    const pdf = await page.pdf({ format });
+    expect(pdf.byteLength).toBeGreaterThan(1000);
+    // Count page objects ("/Type /Page" but not "/Type /Pages"); Chromium writes these uncompressed
+    const pages = pdf.toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) ?? [];
+    expect(pages, `${format} page count`).toHaveLength(2);
+  }
 });
 
 test('a model id containing quote and bracket characters does not break the editor', async ({
