@@ -86,10 +86,14 @@ Expected: `Switched to a new branch 'feature/builder'`
 }
 ```
 
-- [ ] **Step 3: Install dependencies (unpinned, so versions are current)**
+- [ ] **Step 3: Install dependencies**
 
-Run: `npm install -D vite vitest typescript prettier @playwright/test`
-Expected: installs without errors; `package-lock.json` created.
+This machine has Node 18.16, which the newest Vite and Vitest no longer support, so pin the last majors that do (check `node -v` first; if Node is 20.19 or later, unpinned latest is fine):
+
+Run: `npm install -D vite@5 vitest@2 typescript prettier @playwright/test@1.49`
+Expected: installs without errors; `package-lock.json` created. If `@playwright/test@1.49` is not installable, use the newest 1.x that supports Node 18 and say which in the commit message.
+
+Also change `import { defineConfig } from 'vitest/config';` only if the installed Vitest version needs it; the plan's `vite.config.ts` works with Vitest 2.
 
 - [ ] **Step 4: Create config files**
 
