@@ -109,12 +109,15 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
   }
 
   /**
-   * A list of tick boxes. Reads and writes the selection through get/set so that ticking
-   * does not need a redraw. Selected items that are not in `items` (expansion switched off,
-   * unknown ids) are still listed, so nothing is silently dropped.
+   * Chosen items for one category, each in its own drop-down (names only) with its details
+   * underneath, plus an "Add" drop-down for the next one. Reads and writes the selection
+   * through get/set and redraws only itself, so the rest of the editor keeps its focus and
+   * scroll position. Chosen items that are not in `items` (expansion switched off, unknown
+   * ids) stay listed, so nothing is silently dropped.
    */
-  function checklist(
+  function itemPicker(
     kind: 'ranged' | 'close' | 'equipment' | 'powers',
+    noun: string,
     items: Item[],
     get: () => string[],
     set: (next: string[]) => void,
@@ -123,37 +126,73 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     const costKind = (
       { ranged: 'ranged', close: 'close', equipment: 'equipment', powers: 'power' } as const
     )[kind];
-    const known = new Set(items.map((i) => i.id));
-    const extra = get().filter((s) => !known.has(s));
-    const rows = [
-      ...items.map((i) => ({ item: i as Item | undefined, id: i.id })),
-      ...extra.map((e) => ({ item: lookup(kind, e) as Item | undefined, id: e })),
-    ];
-    return h(
-      'div',
-      { class: 'checklist' },
-      ...rows.map(({ item, id: itemId }) => {
-        const box = h('input', { type: 'checkbox' });
-        box.checked = get().includes(itemId);
-        box.addEventListener('change', () => {
-          const current = get();
-          set(box.checked ? [...current, itemId] : current.filter((s) => s !== itemId));
+    const names = items.map((i) => ({ value: i.id, label: i.name }));
+    const box = h('div', { class: 'picker' });
+
+    const details = (item: Item | undefined, id: string) => {
+      if (!item)
+        return h('div', { class: 'details muted' }, `Unknown item “${id}” (kept as saved).`);
+      const x = item as Item & { maxShoot?: number; maxFight?: number; type?: string };
+      const cost = adjustedCost(item, costKind, ctx);
+      const facts = [`${cost} ${cost === 1 ? 'pt' : 'pts'}`];
+      if (x.maxShoot !== undefined)
+        facts.push(`max ${x.maxShoot} shoot action${x.maxShoot === 1 ? '' : 's'}`);
+      if (x.maxFight !== undefined)
+        facts.push(`max ${x.maxFight} fight action${x.maxFight === 1 ? '' : 's'}`);
+      if (kind === 'equipment') facts.push(x.type === 'A' ? 'Use Item action' : 'passive');
+      if (kind === 'powers') facts.push(`${x.type?.toLowerCase()} power`);
+      if (item.source === 'expansion') facts.push('expansion');
+      return h(
+        'div',
+        { class: 'details muted' },
+        h('div', {}, facts.join(' · ')),
+        item.notes && h('div', {}, item.notes),
+      );
+    };
+
+    const draw = () => {
+      const rows = get().map((id, index) => {
+        const item = lookup(kind, id) as Item | undefined;
+        const inList = names.some((n) => n.value === id);
+        const options = inList
+          ? names
+          : [...names, { value: id, label: item ? `${item.name} (expansion)` : `Unknown (${id})` }];
+        const picked = select(options, id, (v) => {
+          const next = [...get()];
+          next[index] = v;
+          set(next);
+          draw();
         });
-        const cost = item ? adjustedCost(item, costKind, ctx) : 0;
-        return h(
-          'label',
-          { title: item?.notes ?? '' },
-          box,
-          h(
-            'span',
-            { class: 'item' },
-            h('span', {}, item ? item.name : `Unknown (${itemId})`),
-            item?.notes && h('small', { class: 'muted' }, item.notes),
-          ),
-          h('span', { class: 'cost' }, String(cost)),
+        picked.setAttribute('aria-label', `${noun[0]!.toUpperCase()}${noun.slice(1)} ${index + 1}`);
+        const remove = h(
+          'button',
+          {
+            type: 'button',
+            'aria-label': `Remove ${item?.name ?? id}`,
+            onClick: () => {
+              set(get().filter((_, i) => i !== index));
+              draw();
+            },
+          },
+          'Remove',
         );
-      }),
-    );
+        return h(
+          'div',
+          { class: 'picked' },
+          h('div', { class: 'picked-head' }, picked, remove),
+          details(item, id),
+        );
+      });
+      const add = select([{ value: '', label: `+ Add ${noun}…` }, ...names], '', (v) => {
+        if (v === '') return;
+        set([...get(), v]);
+        draw();
+      });
+      add.setAttribute('aria-label', `Add ${noun}`);
+      box.replaceChildren(...rows, add);
+    };
+    draw();
+    return box;
   }
 
   /** Trait picker with the chosen trait's rules text shown underneath. */
@@ -287,9 +326,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           dieSelect(DICE, m.willpower, (v) => (m.willpower = v)),
         ),
       ),
-      h('h3', {}, 'Ranged weapon'),
-      checklist(
+      h('h3', {}, 'Ranged weapons'),
+      itemPicker(
         'ranged',
+        'ranged weapon',
         available(catalog.ranged, state.expansion),
         () => m.rangedWeapons,
         (n) => {
@@ -298,9 +338,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         },
         ctx,
       ),
-      h('h3', {}, 'Close combat weapon'),
-      checklist(
+      h('h3', {}, 'Close combat weapons'),
+      itemPicker(
         'close',
+        'close combat weapon',
         available(catalog.close, state.expansion),
         () => m.closeWeapons,
         (n) => {
@@ -310,7 +351,8 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         ctx,
       ),
       h('h3', {}, 'Equipment'),
-      checklist(
+      itemPicker(
+        'equipment',
         'equipment',
         available(catalog.equipment, state.expansion),
         () => m.equipment,
@@ -321,8 +363,9 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         ctx,
       ),
       h('h3', {}, 'Psychic powers'),
-      checklist(
+      itemPicker(
         'powers',
+        'psychic power',
         available(catalog.powers, state.expansion),
         () => m.powers,
         (n) => {

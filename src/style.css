@@ -123,25 +123,6 @@ button.primary {
 .total.over {
   color: var(--warn);
 }
-.checklist {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 2px 12px;
-  max-height: 14em;
-  overflow: auto;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-.checklist label {
-  display: flex;
-  gap: 6px;
-  font-size: 0.9em;
-  color: var(--fg);
-}
-.checklist .cost {
-  color: var(--muted);
-}
 .models {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
@@ -168,13 +149,27 @@ table.list th {
 td.actions button {
   margin: 0 4px 4px 0;
 }
-.checklist .item {
+.picker {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  gap: 6px;
+  align-items: flex-start;
 }
-.checklist .item small {
-  font-size: 0.8em;
+.picked {
+  width: 100%;
+}
+.picked-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.picked-head select {
+  min-width: 14em;
+}
+.details {
+  font-size: 0.85em;
+  margin: 2px 0 0 2px;
+  max-width: 40em;
 }
 .trait {
   display: flex;

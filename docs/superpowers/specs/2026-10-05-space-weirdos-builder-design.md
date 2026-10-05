@@ -73,7 +73,7 @@ Hash-routed screens, no server needed.
 
 - **Library:** list of saved warbands (name, points, model count). New, duplicate, rename, delete, import JSON, export one or all.
 - **Editor:** header with warband name, points target (75, 125 or custom), expansion toggle, warband trait, running total and warnings. Below, a list of model editors with the leader first.
-- **Model editor:** name, leader flag, leader trait; pickers for Spd, Def, Fp, Prw, Will; ranged weapons, close combat weapons, equipment and psychic powers as checklists. Live cost and warnings. Picker rows show cost and notes, with full rule text on hover or tap. Defence modifiers such as Heavy Armor's +1 are shown as in the example warbands.
+- **Model editor:** name, leader flag, leader trait; pickers for Spd, Def, Fp, Prw, Will; ranged weapons, close combat weapons, equipment and psychic powers each chosen from drop-downs that show names only: every chosen item has its own drop-down (and a Remove button) with its details (cost, max actions, type and rule text) shown beneath it, and an "Add" drop-down for the next one. Live cost and warnings. Defence modifiers such as Heavy Armor's +1 are shown as in the example warbands.
 - **Print:** a print preview page, also printable directly.
 
 Single column on phones, two columns on wide screens. Follows system dark mode on screen; always prints black on white.

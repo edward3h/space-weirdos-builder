@@ -206,3 +206,78 @@ test('the library shows a message when a save fails', async ({ page }) => {
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.locator('#banner .banner-warning')).toHaveCount(1);
 });
+
+test('weapons, equipment and powers are chosen from drop-downs that show details', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
+
+  // The drop-down shows names only: no costs or notes in the option text
+  const optionTexts = await model.getByLabel('Add equipment').locator('option').allTextContents();
+  expect(optionTexts).toContain('Heavy Armor');
+  expect(optionTexts.every((t) => !/\d|\+1/.test(t))).toBe(true);
+
+  // Choosing an item shows its details and updates the cost (leader base cost is 7)
+  await model.getByLabel('Add equipment').selectOption('heavy-armor');
+  await expect(model.locator('.details', { hasText: '+1 to Def rolls' })).toContainText(
+    '1 pt · passive',
+  );
+  await expect(model.getByText('8 pts', { exact: true })).toBeVisible();
+  await expect(model.getByLabel('Add equipment')).toHaveValue('');
+
+  // Weapons and powers work the same way
+  await model.getByLabel('Add ranged weapon').selectOption('shotgun');
+  await expect(model.locator('.details', { hasText: 'Range ≤ 1 stick' })).toBeVisible();
+  await model.getByLabel('Add psychic power').selectOption('fear');
+  await expect(model.locator('.details', { hasText: 'must move 1 stick away' })).toBeVisible();
+
+  // A third equipment item is allowed but warned about (a leader has 2 slots)
+  await model.getByLabel('Add equipment').selectOption('grenade');
+  await model.getByLabel('Add equipment').selectOption('jump-pack');
+  await expect(model.getByText(/has 3 equipment, max 2/)).toBeVisible();
+
+  // Remove it again: the warning goes
+  await model.getByRole('button', { name: 'Remove Jump Pack' }).click();
+  await expect(model.getByText(/has 3 equipment, max 2/)).toHaveCount(0);
+
+  // Change a chosen item through its own drop-down
+  await model.getByLabel('Equipment 1', { exact: true }).selectOption('cybernetics');
+  await expect(model.locator('.details', { hasText: '+1 to Prw rolls' })).toBeVisible();
+
+  // Choices persist across a reload
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage)
+          .map((k) => localStorage.getItem(k))
+          .join(''),
+      ),
+    )
+    .toContain('cybernetics');
+  await page.reload();
+  await expect(model.locator('.details', { hasText: '+1 to Prw rolls' })).toBeVisible();
+  await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveValue('cybernetics');
+});
+
+test('an expansion item stays chosen, and flagged, when the expansion is switched off', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.getByLabel('Include fan expansion').check();
+  const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
+  await model.getByLabel('Add equipment').selectOption('comms-unit');
+  await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveValue('comms-unit');
+
+  await page.getByLabel('Include fan expansion').uncheck();
+  // Still chosen, still listed, now labelled as expansion content, and warned about
+  const chosen = model.getByLabel('Equipment 1', { exact: true });
+  await expect(chosen).toHaveValue('comms-unit');
+  await expect(chosen.locator('option:checked')).toHaveText('Comms Unit (expansion)');
+  await expect(model.getByText(/Comms Unit is an expansion item/)).toBeVisible();
+  // And it is no longer offered for new choices
+  const offered = await model.getByLabel('Add equipment').locator('option').allTextContents();
+  expect(offered).not.toContain('Comms Unit');
+});
