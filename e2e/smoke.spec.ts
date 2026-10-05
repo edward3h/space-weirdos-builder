@@ -97,3 +97,59 @@ test('a model id containing quote and bracket characters does not break the edit
   await expect(page.locator('.panel .total').filter({ hasText: /pts$/ }).first()).toBeVisible();
   await expect(page.locator('[data-total]')).toContainText('/ 75 points');
 });
+
+test('the points target ignores empty and non-numeric input', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  const target = page.getByLabel('Points target');
+  await expect(page.locator('[data-total]')).toContainText('/ 75 points');
+  await target.fill('abc');
+  await expect(page.locator('[data-total]')).toContainText('/ 75 points');
+  await target.fill('');
+  await expect(page.locator('[data-total]')).toContainText('/ 75 points');
+  await target.fill('150');
+  await expect(page.locator('[data-total]')).toContainText('/ 150 points');
+  await expect
+    .poll(() => page.evaluate(() => Object.values(localStorage).join('')))
+    .toContain('"target":150');
+});
+
+test('the Powerful flag can be cleared after the expansion is switched off', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.getByLabel('Include fan expansion').check();
+  await page.getByLabel('Powerful').check();
+  await page.getByLabel('Include fan expansion').uncheck();
+  await expect(page.getByLabel('Powerful')).toBeChecked();
+  // The editor redraws on toggle, so click rather than uncheck (which re-checks the old element)
+  await page.getByLabel('Powerful').click();
+  await expect(page.getByLabel('Powerful')).toHaveCount(0);
+});
+
+test('a pending edit is saved when the page becomes hidden', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await expect(page.getByLabel('Warband name')).toBeVisible();
+  const saved = await page.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Warband name"]')!;
+    input.value = 'Hidden Save';
+    input.dispatchEvent(new Event('input'));
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return Object.values(localStorage).join('');
+  });
+  expect(saved).toContain('Hidden Save');
+});
+
+test('library buttons name the warband for screen readers', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.getByLabel('Warband name').fill('Labelled');
+  await expect
+    .poll(() => page.evaluate(() => Object.values(localStorage).join('')))
+    .toContain('Labelled');
+  await page.goto('/#/');
+  for (const verb of ['Print', 'Duplicate', 'Rename', 'Export', 'Delete']) {
+    await expect(page.getByRole('button', { name: `${verb} “Labelled”` })).toBeVisible();
+  }
+});

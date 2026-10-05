@@ -90,10 +90,18 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
           h(
             'td',
             { class: 'actions' },
-            h('button', { onClick: () => (location.hash = `#/wb/${wb.id}/print`) }, 'Print'),
             h(
               'button',
               {
+                'aria-label': `Print “${wb.name}”`,
+                onClick: () => (location.hash = `#/wb/${wb.id}/print`),
+              },
+              'Print',
+            ),
+            h(
+              'button',
+              {
+                'aria-label': `Duplicate “${wb.name}”`,
                 onClick: () => {
                   lib.duplicate(wb.id);
                   draw();
@@ -104,6 +112,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
+                'aria-label': `Rename “${wb.name}”`,
                 onClick: () => {
                   const name = prompt('Rename warband', wb.name);
                   if (name === null) return;
@@ -116,12 +125,16 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             ),
             h(
               'button',
-              { onClick: () => download(`${wb.name || 'warband'}.json`, lib.exportOne(wb.id)!) },
+              {
+                'aria-label': `Export “${wb.name}”`,
+                onClick: () => download(`${wb.name || 'warband'}.json`, lib.exportOne(wb.id)!),
+              },
               'Export',
             ),
             h(
               'button',
               {
+                'aria-label': `Delete “${wb.name}”`,
                 onClick: () => {
                   if (confirm(`Delete “${wb.name}”? This cannot be undone.`)) {
                     lib.remove(wb.id);

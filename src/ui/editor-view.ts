@@ -20,9 +20,10 @@ const TARGET_PRESETS = [75, 125];
 let flushCurrent: (() => void) | undefined;
 let detachCurrent: (() => void) | undefined;
 
-/** Write any pending debounced edit now. main.ts calls this before it changes view. */
+/** Write any pending debounced edit now and drop the editor's listeners. main.ts calls this before it changes view. */
 export function flushEditor(): void {
   flushCurrent?.();
+  detachCurrent?.();
 }
 
 export function renderEditor(root: HTMLElement, lib: Library, id: string): void {
@@ -60,9 +61,15 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     doSave();
   };
   flushCurrent = flush;
+  // Mobile browsers may not fire pagehide when the page is backgrounded, so also use visibilitychange
+  const flushIfHidden = () => {
+    if (document.visibilityState === 'hidden') flush();
+  };
   window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', flushIfHidden);
   detachCurrent = () => {
     window.removeEventListener('pagehide', flush);
+    document.removeEventListener('visibilitychange', flushIfHidden);
     flushCurrent = undefined;
   };
 
@@ -224,7 +231,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           if (!v) m.leaderTrait = null;
           changed();
         }),
-        state.expansion &&
+        (state.expansion || m.powerful) &&
           toggle('Powerful', m.powerful, (v) => {
             m.powerful = v;
             changed();
@@ -346,7 +353,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       style: 'width:6em',
     });
     targetInput.addEventListener('input', () => {
-      state.target = Number(targetInput.value) || 0;
+      // Keep the previous target while the field is empty or not a positive whole number
+      const text = targetInput.value.trim();
+      if (!/^\d+$/.test(text) || Number(text) <= 0) return;
+      state.target = Number(text);
       save();
       refreshStatus();
     });
