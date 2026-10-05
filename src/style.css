@@ -161,3 +161,17 @@ table.list th {
 td.actions button {
   margin: 0 4px 4px 0;
 }
+.checklist .item {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.checklist .item small {
+  font-size: 0.8em;
+}
+.trait {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 28em;
+}
