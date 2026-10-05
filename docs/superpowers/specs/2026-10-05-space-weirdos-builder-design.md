@@ -77,10 +77,10 @@ Single column on phones, two columns on wide screens. Follows system dark mode o
 
 ## Storage
 
-- One `localStorage` key per warband, plus a small index of ids, so one corrupt entry cannot take down the library.
+- One `localStorage` key per warband (prefix `weirdos:wb:`), so one corrupt entry cannot take down the library. There is no separate index of ids: the library lists warbands by scanning for the prefix, which cannot get out of step with the entries.
 - Each record carries a `schemaVersion`, with a migration function.
 - If `localStorage` is unavailable or full, a visible banner says changes will not be kept and offers an export.
-- Import validates the JSON and reports problems clearly. It accepts a single warband or a whole library; name clashes get a "(copy)" suffix.
+- Import validates the JSON and reports problems clearly. It accepts a single warband or a whole library; an imported warband whose id or name matches an existing one gets a "(copy)" suffix (and a new id if the id clashed).
 - Unknown item ids (for example from a future version) are kept and flagged, not dropped.
 
 ## Testing
@@ -88,9 +88,10 @@ Single column on phones, two columns on wide screens. Follows system dark mode o
 - **Engine unit tests:** each trait's cost effect and every warning rule. The example warbands in both PDFs (for example X-Terminators and Razor Girls) must reproduce their published point costs, which also checks the transcribed data.
 - **Storage tests:** round-trip, migration, corrupt entries, import validation.
 - **Playwright smoke test:** build a warband, reload and confirm it persists; confirm the print view gives eight equal-sized cards per page.
-- Prettier enforces code style; the build runs it as a check.
+- Prettier enforces code style via a separate `npm run format:check` step, run alongside the tests and build before each merge.
 
 ## Open points
 
 - The example warband stat lines show Firepower as "Fn/a" for models with no ranged weapon; the card should show "none" or "n/a" consistently.
-- Some published example costs may not match the cost tables exactly; any mismatches found will be reported rather than silently adjusted.
+- Twelve published example costs do not match the cost tables (Astral and Vampire in the core rules; Darn Father, Darn Sillious, Imperial Scout, Big Pappa, Karl, Dwarf Trooper, Dwarf Demolisher, Bezerker, Little Bugs and Tech Daddy in the expansion). They are recorded in the example tests with both numbers rather than silently adjusted. The other 45 or so examples agree exactly.
+- Hero/Villain doubles the leader's cost towards the warband total, but the 25-point (or 20 or 30) model limits are checked on the undoubled cost. The rules do not say which is intended.

@@ -973,7 +973,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 import { describe, expect, it } from 'vitest';
 import { newModel, newWarband } from '../model/factory';
 import type { ModelSpec } from '../model/types';
-import { modelCost, warbandCost, type Context } from './engine';
+import { displayCost, modelCost, warbandCost, type Context } from './engine';
 
 const core: Context = { expansion: false, warbandTrait: null };
 const m = (o: Partial<ModelSpec> = {}): ModelSpec => ({ ...newModel(), ...o });
@@ -1023,8 +1023,9 @@ describe('warband trait cost effects', () => {
     const ctx: Context = { expansion: false, warbandTrait: 'mutants' };
     expect(modelCost(m({ speed: 3 }), ctx).total).toBe(modelCost(m({ speed: 3 }), core).total - 1);
     expect(modelCost(m({ speed: 1 }), ctx).total).toBe(modelCost(m({ speed: 1 }), core).total);
+    // Speed 1 costs 0, so only the weapon discount shows (Mutants also discount Speed 2)
     for (const id of ['claws-teeth', 'horrible-claws-teeth', 'whip-tail']) {
-      const model = m({ closeWeapons: [id] });
+      const model = m({ speed: 1, closeWeapons: [id] });
       expect(modelCost(model, ctx).total).toBe(modelCost(model, core).total - 1);
     }
   });
@@ -1067,6 +1068,13 @@ describe('warbandCost', () => {
     expect(warbandCost(wb)).toBe(7 * 2 + 7);
     wb.expansion = false;
     expect(warbandCost(wb)).toBe(14);
+  });
+
+  it('displayCost is the cost that counts towards the total (doubled for Hero/Villain)', () => {
+    const leader = m({ isLeader: true, leaderTrait: 'hero-villain' });
+    expect(displayCost(leader, { expansion: true, warbandTrait: null })).toBe(14);
+    expect(displayCost(leader, core)).toBe(7);
+    expect(modelCost(leader, { expansion: true, warbandTrait: null }).total).toBe(7);
   });
 });
 ```
@@ -1174,13 +1182,19 @@ export function modelCost(m: ModelSpec, ctx: Context): ModelCost {
   return { total: lines.reduce((s, l) => s + l.cost, 0), lines };
 }
 
+/**
+ * The cost that counts towards the warband total: a Hero/Villain leader counts double
+ * (expansion). Model limits are checked on the undoubled `modelCost`, because the rules
+ * do not say the doubled value must fit under the 25-point cap; this is an interpretation.
+ */
+export function displayCost(m: ModelSpec, ctx: Context): number {
+  const cost = modelCost(m, ctx).total;
+  return ctx.expansion && m.isLeader && m.leaderTrait === 'hero-villain' ? cost * 2 : cost;
+}
+
 export function warbandCost(wb: Warband): number {
   const ctx = contextOf(wb);
-  return wb.models.reduce((sum, m) => {
-    const cost = modelCost(m, ctx).total;
-    const doubled = ctx.expansion && m.isLeader && m.leaderTrait === 'hero-villain';
-    return sum + (doubled ? cost * 2 : cost);
-  }, 0);
+  return wb.models.reduce((sum, m) => sum + displayCost(m, ctx), 0);
 }
 
 export type { StatKey };
@@ -1234,15 +1248,15 @@ const wbWith = (models: ModelSpec[], o: Partial<ReturnType<typeof newWarband>> =
 });
 const messages = (wb: ReturnType<typeof newWarband>) =>
   validateWarband(wb).map((w) => w.message);
-// A model costing exactly `n` points: base 7 plus Prowess/Defence upgrades are awkward,
-// so build costs from known pieces instead.
-const costing21 = () => m({ defense: '2d10', prowess: '2d8', willpower: '2d6', firepower: 'none' }); // 1+8+0+4+2 = 15
-// 15 + Large Powered Weapon 3 + Heavy Armor 1 + Jump Pack 0 ... see helper below
+// A model costing exactly `target` points (minimum 15): a 15-point base
+// (Speed 2 = 1, Def 2d10 = 8, no FP = 0, Prw 2d8 = 4, Will 2d6 = 2) plus one
+// Prescience (1 point each) per extra point.
+const base15 = () => m({ defense: '2d10', prowess: '2d8', willpower: '2d6', firepower: 'none' });
 const withCost = (target: number): ModelSpec => {
-  // Use powers (cost 1 each: prescience) to top up a 15-point base.
-  const base = costing21();
+  const base = base15();
   const need = target - modelCost(base, core).total;
-  return { ...base, powers: Array(Math.max(0, need)).fill('prescience') };
+  if (need < 0) throw new Error('withCost: minimum is 15');
+  return { ...base, powers: Array(need).fill('prescience') };
 };
 
 describe('limits', () => {
@@ -1270,7 +1284,7 @@ describe('validateWarband', () => {
   });
 
   it('warns about a model over 25 and a second model over 20', () => {
-    const wb = wbWith([withCost(26), withCost(22), withCost(10)], { target: 125 });
+    const wb = wbWith([withCost(26), withCost(22), m()], { target: 125 });
     wb.models[0]!.isLeader = true;
     const msgs = messages(wb);
     expect(msgs.some((x) => /costs 26.*limit 25/i.test(x))).toBe(true);
@@ -1434,8 +1448,9 @@ export function validateWarband(wb: Warband): Warning[] {
       if (cost > lim.powerful)
         warn(m.id, `${label(m)} costs ${cost}, limit ${lim.powerful} for a Powerful model.`);
     } else {
+      // A model over the top limit is also over the normal limit, so these are independent
       if (cost > lim.top) warn(m.id, `${label(m)} costs ${cost}, limit ${lim.top}.`);
-      else if (cost > lim.normal) aboveNormal++;
+      if (cost > lim.normal) aboveNormal++;
     }
 
     // Leader trait
@@ -1523,7 +1538,7 @@ This is the check that the data tables and cost rules agree with the published e
 
 - [ ] **Step 1: Write the test**
 
-`expected` is the cost computed by hand from the cost tables. `published` is given only where the PDF prints a different number; those two are suspected errors in the PDFs and are reported, not "fixed".
+`expected` is the cost computed by hand from the cost tables. `published` is given only where the PDF prints a different number; those twelve (Astral, Vampire and ten in the expansion) are suspected errors in the PDFs and are reported, not "fixed". Final summary to the user must list them.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1583,6 +1598,46 @@ const examples: Example[] = [
   E({ name: 'Luke Starweirder', trait: 'plucky-rebels', expansion: true, expected: 20, spd: 2, def: '2d8', fp: 'none', prw: '2d8', will: '2d10', close: ['powered-weapon'], equip: ['laser-sword'], powers: ['telekinesis', 'prescience'] }),
   E({ name: 'Chow-baka', trait: 'plucky-rebels', expansion: true, expected: 24, spd: 2, def: '2d8', fp: '2d10', prw: '2d10', will: '2d8', ranged: ['heavy-rifle'], close: ['claws-teeth'], equip: ['grenade'] }),
   E({ name: 'Han Loco', trait: 'plucky-rebels', expansion: true, expected: 12, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['energy-pistol'], equip: ['targeting-reticule'] }),
+  // The rest of the expansion's example warbands (pp.14-15). Where the printed cost
+  // disagrees with the cost tables, `expected` is the table value and `published` the PDF's.
+  // Imperial Empire (Imperial Numbers)
+  E({ name: 'Darn Father', trait: 'imperial-numbers', expansion: true, expected: 24, published: 25, leader: true, spd: 2, def: '2d8', fp: 'none', prw: '2d10', will: '2d8', close: ['powered-weapon'], equip: ['laser-sword'], powers: ['telekinesis', 'mind-stab', 'prescience', 'fear'] }),
+  E({ name: 'Darn Sillious', trait: 'imperial-numbers', expansion: true, expected: 20, published: 19, spd: 2, def: '2d6', fp: 'none', prw: '2d8', will: '2d10', equip: ['psychic-focus'], powers: ['telekinesis', 'fear', 'mind-stab', 'prescience'] }),
+  E({ name: 'Imperial Trooper', trait: 'imperial-numbers', expansion: true, expected: 10, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['auto-rifle'] }),
+  E({ name: 'Imperial Scout', trait: 'imperial-numbers', expansion: true, expected: 12, published: 11, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['sniper-rifle'] }),
+  E({ name: 'Rebel Fighter', trait: 'plucky-rebels', expansion: true, expected: 10, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['heavy-pistol'] }),
+  // Crime Lords (Mutants)
+  E({ name: 'Big Pappa', trait: 'mutants', expansion: true, expected: 19, published: 17, leader: true, spd: 1, def: '2d10', fp: 'none', prw: '2d6', will: '2d10', close: ['claws-teeth'], equip: ['heavy-armor', 'comms-unit'] }),
+  E({ name: 'Slave Driver', trait: 'mutants', expansion: true, expected: 10, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['heavy-pistol'], close: ['whip-tail'] }),
+  E({ name: 'Pigman', trait: 'mutants', expansion: true, expected: 11, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['energy-rifle'], close: ['claws-teeth'] }),
+  E({ name: 'Bounty Hunter', trait: 'mutants', expansion: true, expected: 15, spd: 3, def: '2d8', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['energy-pistol'], equip: ['jump-pack'] }),
+  // Xenos Cult (Fanatics; the two-column layout of the PDF makes the Xenos models look like Mutants)
+  E({ name: 'Cult Father', trait: 'fanatics', expansion: true, expected: 21, leader: true, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d10', ranged: ['energy-pistol'], close: ['melee-weapon'], equip: ['psychic-focus'], powers: ['prescience', 'fear', 'mind-control'] }),
+  E({ name: 'Xenos', trait: 'fanatics', expansion: true, expected: 19, spd: 3, def: '2d8', fp: 'none', prw: '2d10', will: '2d6', close: ['horrible-claws-teeth'], equip: ['cybernetics'] }),
+  E({ name: 'Hybrid', trait: 'fanatics', expansion: true, expected: 15, spd: 2, def: '2d6', fp: '2d8', prw: '2d8', will: '2d6', ranged: ['flamer'], close: ['claws-teeth'] }),
+  E({ name: 'Cultist', trait: 'fanatics', expansion: true, expected: 10, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['auto-rifle'] }),
+  // Sporks (Heavily Armed)
+  E({ name: 'Big Bozz', trait: 'heavily-armed', expansion: true, expected: 19, leader: true, spd: 2, def: '2d8', fp: '2d8', prw: '2d8', will: '2d8', ranged: ['heavy-pistol'], close: ['large-powered-weapon'], equip: ['heavy-armor'] }),
+  E({ name: 'Ladz', trait: 'heavily-armed', expansion: true, expected: 11, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['heavy-pistol'], close: ['melee-weapon'], equip: ['heavy-armor'] }),
+  E({ name: 'Stormin Ladz', trait: 'heavily-armed', expansion: true, expected: 16, spd: 3, def: '2d6', fp: '2d8', prw: '2d8', will: '2d6', ranged: ['heavy-pistol'], close: ['powered-weapon'], equip: ['jump-pack'] }),
+  E({ name: 'Little Gitz', trait: 'heavily-armed', expansion: true, expected: 9, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['auto-pistol'] }),
+  // Stumpies (Blue Collar)
+  E({ name: 'Karl', trait: 'blue-collar', expansion: true, expected: 22, published: 21, leader: true, spd: 1, def: '2d8', fp: '2d8', prw: '2d8', will: '2d10', ranged: ['energy-pistol'], close: ['powered-weapon'], equip: ['cybernetics', 'heavy-armor'] }),
+  E({ name: 'Dwarf Trooper', trait: 'blue-collar', expansion: true, expected: 12, published: 11, spd: 1, def: '2d6', fp: '2d8', prw: '2d6', will: '2d8', ranged: ['energy-rifle'] }),
+  E({ name: 'Dwarf Demolisher', trait: 'blue-collar', expansion: true, expected: 16, published: 15, spd: 1, def: '2d6', fp: '2d10', prw: '2d6', will: '2d8', ranged: ['rocket-launcher'], equip: ['targeting-reticule'] }),
+  E({ name: 'Bezerker', trait: 'blue-collar', expansion: true, expected: 16, published: 15, spd: 1, def: '2d6', fp: '2d8', prw: '2d8', will: '2d8', ranged: ['energy-pistol'], close: ['melee-weapon'], equip: ['grenade'] }),
+  // Xenos Bugs (Mutants)
+  E({ name: 'Big Bug', trait: 'mutants', expansion: true, expected: 24, leader: true, spd: 2, def: '2d8', fp: '2d8', prw: '2d8', will: '2d10', ranged: ['shotgun'], close: ['horrible-claws-teeth'], equip: ['heavy-armor'], powers: ['prescience', 'mind-control'] }),
+  E({ name: 'Flying Bug', trait: 'mutants', expansion: true, expected: 18, spd: 3, def: '2d8', fp: '2d8', prw: '2d8', will: '2d6', ranged: ['shotgun'], close: ['claws-teeth'], equip: ['jump-pack'] }),
+  E({ name: 'Grunt Bug', trait: 'mutants', expansion: true, expected: 13, spd: 2, def: '2d8', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['shotgun'], close: ['claws-teeth'] }),
+  E({ name: 'Little Bugs', trait: 'mutants', expansion: true, expected: 8, published: 10, spd: 1, def: '2d6', fp: 'none', prw: '2d6', will: '2d6', close: ['horrible-claws-teeth'] }),
+  // Neon City: Purifying Flame (Fanatics), Tech Bros (Cyborgs), Miners Guild (Blue Collar)
+  E({ name: 'Deacon Inferno', trait: 'fanatics', expansion: true, expected: 23, leader: true, spd: 2, def: '2d6', fp: '2d10', prw: '2d8', will: '2d10', ranged: ['flamer'], close: ['melee-weapon'], equip: ['grenade', 'grenade'], powers: ['fear'] }),
+  E({ name: 'Acolyte', trait: 'fanatics', expansion: true, expected: 12, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['heavy-pistol'], close: ['melee-weapon'], equip: ['grenade'] }),
+  E({ name: 'Tech Daddy', trait: 'cyborgs', expansion: true, expected: 21, published: 23, leader: true, spd: 2, def: '2d8', fp: '2d10', prw: '2d6', will: '2d6', ranged: ['sniper-rifle'], equip: ['stealth-suit', 'targeting-reticule', 'comms-unit'], powers: ['prescience'] }),
+  E({ name: 'Tech Bro', trait: 'cyborgs', expansion: true, expected: 14, spd: 2, def: '2d6', fp: '2d8', prw: '2d6', will: '2d6', ranged: ['energy-rifle'], equip: ['targeting-reticule', 'stealth-suit'] }),
+  E({ name: 'Foreman', trait: 'blue-collar', expansion: true, expected: 19, leader: true, spd: 2, def: '2d6', fp: '2d10', prw: '2d6', will: '2d8', ranged: ['autocannon'], close: ['melee-weapon'], equip: ['heavy-armor', 'targeting-reticule'] }),
+  E({ name: 'Crew', trait: 'blue-collar', expansion: true, expected: 12, spd: 2, def: '2d6', fp: '2d8', prw: '2d8', will: '2d6', ranged: ['auto-pistol'], close: ['melee-weapon'] }),
 ];
 
 describe('example warbands from the PDFs', () => {
@@ -1611,7 +1666,7 @@ describe('example warbands from the PDFs', () => {
 - [ ] **Step 2: Run**
 
 Run: `npx vitest run src/rules/examples.test.ts`
-Expected: all PASS. If any other example fails, re-read the relevant PDF page (`pdftotext -layout`) and decide whether the data table or the example is wrong. Do not edit `expected` just to make a test pass. If a further genuine PDF discrepancy turns up, add it with a `published` value and tell the user.
+Expected: all PASS. If any example fails, re-read the relevant PDF page (`pdftotext -layout`) and decide whether the data table or the example is wrong. Do not edit `expected` just to make a test pass. If a further genuine PDF discrepancy turns up, add it with a `published` value and tell the user.
 
 - [ ] **Step 3: Commit**
 
@@ -1783,6 +1838,15 @@ describe('export and import', () => {
     expect(names).toEqual(['A', 'A (copy)']);
   });
 
+  it('also adds (copy) when a different warband has the same name', () => {
+    const lib = make();
+    lib.save(newWarband('Same name'));
+    const other = newWarband('Same name'); // different id, same name
+    const result = lib.importText(JSON.stringify(other));
+    expect(result.imported).toBe(1);
+    expect(lib.get(other.id)?.name).toBe('Same name (copy)');
+  });
+
   it('accepts a bare warband object as well as the wrapper format', () => {
     const lib = make();
     const result = lib.importText(JSON.stringify(newWarband('Bare')));
@@ -1866,7 +1930,9 @@ export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
 export function parseWarband(raw: unknown): Warband {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
     throw new Invalid('warband: expected an object');
-  const o = migrate(raw as Record<string, unknown>);
+  const rawObj = raw as Record<string, unknown>;
+  str(rawObj, 'id', ''); // check id first, so a bare {} reports the missing id
+  const o = migrate(rawObj);
   const target = o.target;
   if (typeof target !== 'number' || !Number.isFinite(target)) fail('target', 'expected a number');
   if (!Array.isArray(o.models)) fail('models', 'expected a list');
@@ -1883,13 +1949,9 @@ export function parseWarband(raw: unknown): Warband {
 }
 ```
 
-Note: the "id" test expects an error mentioning `id`; `parseWarband({})` fails first on `schemaVersion` because `migrate` runs before field checks. Make that test pass by checking `id` first: in `parseWarband`, call `str(o, 'id', '')` before `migrate`. Do this by changing the first lines after the object check to:
+Unknown item ids are deliberately accepted here (the parser only checks that the lists contain strings), so saved data is never lost. They are flagged by `validateWarband` (Task 5) and shown in the editor's checklists (Task 10).
 
-```ts
-  const rawObj = raw as Record<string, unknown>;
-  str(rawObj, 'id', '');
-  const o = migrate(rawObj);
-```
+There is no separate index of warband ids (the spec's Storage section is updated to match): `Library.list()` scans the store's keys for the `weirdos:wb:` prefix, which cannot get out of step with the entries.
 
 - [ ] **Step 5: Create `src/storage/library.ts`**
 
@@ -1981,10 +2043,10 @@ export class Library {
     items.forEach((raw, i) => {
       try {
         const wb = parseWarband(raw);
-        if (this.get(wb.id)) {
-          wb.id = newId();
-          wb.name = `${wb.name} (copy)`;
-        }
+        const idClash = this.get(wb.id) !== null;
+        const nameClash = this.list().warbands.some((w) => w.name === wb.name);
+        if (idClash) wb.id = newId();
+        if (idClash || nameClash) wb.name = `${wb.name} (copy)`;
         this.save(wb);
         result.imported++;
       } catch (e) {
@@ -2002,8 +2064,8 @@ function wrap(warbands: Warband[]): string {
 
 - [ ] **Step 6: Run to verify pass**
 
-Run: `npx vitest run`
-Expected: all tests (rules and storage) PASS.
+Run: `npx vitest run && npm run build`
+Expected: all tests (rules and storage) PASS, and the build type-checks (Vitest does not type-check).
 
 - [ ] **Step 7: Commit**
 
@@ -2289,6 +2351,9 @@ table.list th {
 .muted {
   color: var(--muted);
 }
+td.actions button {
+  margin: 0 4px 4px 0;
+}
 ```
 
 - [ ] **Step 4: Verify**
@@ -2404,7 +2469,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
           h('td', {}, String(wb.models.length)),
           h(
             'td',
-            { class: 'toolbar' },
+            { class: 'actions' },
             h('button', { onClick: () => (location.hash = `#/wb/${wb.id}/print`) }, 'Print'),
             h(
               'button',
@@ -2473,33 +2538,48 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ### Task 10: Editor view
 
-Design note: text inputs update state without a full re-render (so typing keeps focus). Selects, checkboxes and add/remove buttons trigger a full re-render. Totals and warnings are refreshed by `refreshStatus()` in both cases.
+Design notes:
+- Text inputs update state without a redraw, so typing keeps focus. They save through a 250 ms debounce.
+- Pickers that do not change the editor's structure (dice selects, equipment and power checklists) save immediately and only refresh totals and warnings, so scroll position and keyboard focus are kept.
+- Only structural changes (leader or powerful toggle, expansion toggle, warband or leader trait, add or remove a model) save and redraw the whole editor.
+- `flushEditor()` writes any pending debounced edit at once. It is called before every view change, and on `pagehide`, so navigating or closing the tab within 250 ms of an edit loses nothing and the next view never reads stale data.
+- Limits and the "one model above 20 points" check use the undoubled model cost; the cost shown for a Hero/Villain leader is the doubled value that counts towards the warband total (`displayCost`).
 
 **Files:**
-- Modify: `src/ui/editor-view.ts`
+- Modify: `src/ui/editor-view.ts`, `src/main.ts`
 
-- [ ] **Step 1: Replace the stub**
+- [ ] **Step 1: Replace the stub `src/ui/editor-view.ts`**
 
 ```ts
 import { newModel } from '../model/factory';
 import type { ModelSpec, Warband } from '../model/types';
-import { available, catalog, lookup, type CatalogKind } from '../rules/catalog';
+import { available, catalog, lookup } from '../rules/catalog';
 import {
   adjustedCost,
   contextOf,
-  modelCost,
+  displayCost,
   validateWarband,
   warbandCost,
   type Context,
   type Warning,
 } from '../rules/engine';
-import type { Item, Trait } from '../rules/types';
+import type { Item } from '../rules/types';
 import type { Library } from '../storage/library';
 import { h, select } from './dom';
 
 const DICE = ['2d6', '2d8', '2d10'] as const;
+const TARGET_PRESETS = [75, 125];
+
+let flushCurrent: (() => void) | undefined;
+let detachCurrent: (() => void) | undefined;
+
+/** Write any pending debounced edit now. main.ts calls this before it changes view. */
+export function flushEditor(): void {
+  flushCurrent?.();
+}
 
 export function renderEditor(root: HTMLElement, lib: Library, id: string): void {
+  detachCurrent?.();
   const wb = lib.get(id);
   if (!wb) {
     root.append(h('p', {}, 'Warband not found. '), h('a', { href: '#/' }, 'Back to the library'));
@@ -2509,27 +2589,46 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
   let saveTimer: number | undefined;
   let saveFailed = false;
 
+  const doSave = () => {
+    try {
+      lib.save(state);
+      saveFailed = false;
+    } catch {
+      saveFailed = true;
+    }
+    refreshStatus();
+  };
+  /** Debounced save, for text inputs. */
   const save = () => {
     window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try {
-        lib.save(state);
-        saveFailed = false;
-      } catch {
-        saveFailed = true;
-      }
-      refreshStatus();
+      saveTimer = undefined;
+      doSave();
     }, 250);
   };
+  const flush = () => {
+    if (saveTimer === undefined) return;
+    window.clearTimeout(saveTimer);
+    saveTimer = undefined;
+    doSave();
+  };
+  flushCurrent = flush;
+  window.addEventListener('pagehide', flush);
+  detachCurrent = () => {
+    window.removeEventListener('pagehide', flush);
+    flushCurrent = undefined;
+  };
 
-  /** A change that needs the whole editor redrawn (pickers, toggles, add/remove). */
+  /** A change that keeps the editor's structure: save now and refresh totals and warnings. */
+  const touched = () => doSave();
+  /** A structural change: save now and redraw everything. */
   const changed = () => {
-    save();
+    doSave();
     draw();
   };
 
   const warningsList = (ws: Warning[]) =>
-    h('ul', { class: 'warnings' }, ...ws.map((w) => h('li', { class: w.level }, w.message)));
+    ws.map((w) => h('li', { class: w.level }, w.message));
 
   function refreshStatus() {
     const ctx = contextOf(state);
@@ -2540,34 +2639,35 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       totalEl.textContent = `${total} / ${state.target} points`;
       totalEl.classList.toggle('over', total > state.target);
     }
-    root.querySelector('[data-warband-warnings]')?.replaceWith(
-      Object.assign(warningsList(all.filter((w) => w.scope === 'warband')), {}),
-    );
-    // keep the replaced node discoverable
-    root.querySelector('ul.warnings:not([data-model-warnings])')?.setAttribute('data-warband-warnings', '');
+    root
+      .querySelector<HTMLElement>('[data-warband-warnings]')
+      ?.replaceChildren(...warningsList(all.filter((w) => w.scope === 'warband')));
     for (const m of state.models) {
       const costEl = root.querySelector<HTMLElement>(`[data-cost="${m.id}"]`);
-      if (costEl) costEl.textContent = `${modelCost(m, ctx).total} pts`;
-      const box = root.querySelector<HTMLElement>(`[data-model-warnings="${m.id}"]`);
-      if (box) box.replaceChildren(...all.filter((w) => w.scope === m.id).map((w) => h('li', { class: w.level }, w.message)));
+      if (costEl) costEl.textContent = `${displayCost(m, ctx)} pts`;
+      root
+        .querySelector<HTMLElement>(`[data-model-warnings="${m.id}"]`)
+        ?.replaceChildren(...warningsList(all.filter((w) => w.scope === m.id)));
     }
     const saveEl = root.querySelector<HTMLElement>('[data-save-status]');
     if (saveEl) saveEl.textContent = saveFailed ? 'Could not save! Use Export to keep a copy.' : '';
   }
 
-  function checklist<K extends CatalogKind>(
-    kind: K,
-    items: (Item & { type?: string })[],
-    selected: string[],
+  /**
+   * A list of tick boxes. Reads and writes the selection through get/set so that ticking
+   * does not need a redraw. Selected items that are not in `items` (expansion switched off,
+   * unknown ids) are still listed, so nothing is silently dropped.
+   */
+  function checklist(
+    kind: 'ranged' | 'close' | 'equipment' | 'powers',
+    items: Item[],
+    get: () => string[],
+    set: (next: string[]) => void,
     ctx: Context,
-    onChange: (next: string[]) => void,
   ) {
-    const costKind = ({ ranged: 'ranged', close: 'close', equipment: 'equipment', powers: 'power' } as const)[
-      kind as 'ranged' | 'close' | 'equipment' | 'powers'
-    ];
+    const costKind = ({ ranged: 'ranged', close: 'close', equipment: 'equipment', powers: 'power' } as const)[kind];
     const known = new Set(items.map((i) => i.id));
-    // Keep selected items that are not in the current list (expansion switched off, unknown ids)
-    const extra = selected.filter((s) => !known.has(s));
+    const extra = get().filter((s) => !known.has(s));
     const rows = [
       ...items.map((i) => ({ item: i as Item | undefined, id: i.id })),
       ...extra.map((e) => ({ item: lookup(kind, e) as Item | undefined, id: e })),
@@ -2577,47 +2677,84 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       { class: 'checklist' },
       ...rows.map(({ item, id: itemId }) => {
         const box = h('input', { type: 'checkbox' });
-        box.checked = selected.includes(itemId);
-        box.addEventListener('change', () =>
-          onChange(box.checked ? [...selected, itemId] : selected.filter((s) => s !== itemId)),
-        );
+        box.checked = get().includes(itemId);
+        box.addEventListener('change', () => {
+          const current = get();
+          set(box.checked ? [...current, itemId] : current.filter((s) => s !== itemId));
+        });
         const cost = item ? adjustedCost(item, costKind, ctx) : 0;
         return h(
           'label',
           { title: item?.notes ?? '' },
           box,
-          h('span', {}, item ? item.name : `Unknown (${itemId})`),
-          h('span', { class: 'cost' }, `${cost}`),
+          h(
+            'span',
+            { class: 'item' },
+            h('span', {}, item ? item.name : `Unknown (${itemId})`),
+            item?.notes && h('small', { class: 'muted' }, item.notes),
+          ),
+          h('span', { class: 'cost' }, String(cost)),
         );
       }),
     );
   }
 
-  const traitSelect = (traits: Trait[], value: string | null, onChange: (v: string | null) => void) => {
-    const known = traits.some((t) => t.id === value);
+  /** Trait picker with the chosen trait's rules text shown underneath. */
+  const traitPicker = (
+    kind: 'leaderTraits' | 'warbandTraits',
+    value: string | null,
+    onChange: (v: string | null) => void,
+  ) => {
+    const shown = available(catalog[kind], state.expansion);
+    const hiddenSelected = value !== null && !shown.some((t) => t.id === value);
+    const known = value ? lookup(kind, value) : undefined;
     const options = [
       { value: '', label: '(none)' },
-      ...traits.map((t) => ({ value: t.id, label: t.name })),
-      ...(value && !known ? [{ value, label: `Unknown (${value})` }] : []),
+      ...shown.map((t) => ({ value: t.id, label: t.name })),
+      ...(hiddenSelected
+        ? [{ value: value!, label: known ? `${known.name} (expansion)` : `Unknown (${value})` }]
+        : []),
     ];
-    return select(options, value ?? '', (v) => onChange(v === '' ? null : v));
+    return h(
+      'div',
+      { class: 'trait' },
+      select(options, value ?? '', (v) => onChange(v === '' ? null : v)),
+      h('small', { class: 'muted' }, known?.effect ?? ''),
+    );
+  };
+
+  const toggle = (label: string, checked: boolean, onToggle: (v: boolean) => void) => {
+    const box = h('input', { type: 'checkbox' });
+    box.checked = checked;
+    box.addEventListener('change', () => onToggle(box.checked));
+    return h('label', { class: 'inline' }, box, label);
   };
 
   function modelPanel(m: ModelSpec, ctx: Context) {
     const dieSelect = <T extends string>(opts: readonly T[], value: T, set: (v: T) => void) =>
-      select(opts.map((o) => ({ value: o, label: o })), value, (v) => {
-        set(v);
-        changed();
-      });
-    const defOpts = (state.expansion || m.defense === '2d4' ? ['2d4', ...DICE] : [...DICE]) as ModelSpec['defense'][];
-    const fpOpts = ['none', ...(state.expansion || m.firepower === '2d6' ? ['2d6'] : []), '2d8', '2d10'] as ModelSpec['firepower'][];
+      select(
+        opts.map((o) => ({ value: o, label: o })),
+        value,
+        (v) => {
+          set(v);
+          touched();
+        },
+      );
+    const defOpts = (
+      state.expansion || m.defense === '2d4' ? ['2d4', ...DICE] : [...DICE]
+    ) as ModelSpec['defense'][];
+    const fpOpts = [
+      'none',
+      ...(state.expansion || m.firepower === '2d6' ? ['2d6'] : []),
+      '2d8',
+      '2d10',
+    ] as ModelSpec['firepower'][];
     const field = (label: string, el: Node) => h('label', {}, label, el);
-    const on = state.expansion;
+
     const nameInput = h('input', { value: m.name, 'aria-label': 'Model name' });
     nameInput.addEventListener('input', () => {
       m.name = nameInput.value;
       save();
-      refreshStatus();
     });
 
     return h(
@@ -2628,32 +2765,16 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         { class: 'row' },
         field('Name', nameInput),
         h('span', { class: 'total', 'data-cost': m.id }, ''),
-        h(
-          'label',
-          { class: 'inline' },
-          Object.assign(h('input', { type: 'checkbox' }), {
-            checked: m.isLeader,
-            onchange: (e: Event) => {
-              m.isLeader = (e.target as HTMLInputElement).checked;
-              if (!m.isLeader) m.leaderTrait = null;
-              changed();
-            },
+        toggle('Leader', m.isLeader, (v) => {
+          m.isLeader = v;
+          if (!v) m.leaderTrait = null;
+          changed();
+        }),
+        state.expansion &&
+          toggle('Powerful', m.powerful, (v) => {
+            m.powerful = v;
+            changed();
           }),
-          'Leader',
-        ),
-        on &&
-          h(
-            'label',
-            { class: 'inline' },
-            Object.assign(h('input', { type: 'checkbox' }), {
-              checked: m.powerful,
-              onchange: (e: Event) => {
-                m.powerful = (e.target as HTMLInputElement).checked;
-                changed();
-              },
-            }),
-            'Powerful',
-          ),
         h(
           'button',
           {
@@ -2671,7 +2792,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           { class: 'row' },
           field(
             'Leader trait',
-            traitSelect(available(catalog.leaderTraits, state.expansion), m.leaderTrait, (v) => {
+            traitPicker('leaderTraits', m.leaderTrait, (v) => {
               m.leaderTrait = v;
               changed();
             }),
@@ -2680,32 +2801,59 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       h(
         'div',
         { class: 'row' },
-        field('Speed', dieSelect(['1', '2', '3'] as const, String(m.speed) as '1', (v) => (m.speed = Number(v) as 1))),
+        field(
+          'Speed',
+          dieSelect(['1', '2', '3'] as const, String(m.speed) as '1', (v) => (m.speed = Number(v) as 1)),
+        ),
         field('Defence', dieSelect(defOpts, m.defense, (v) => (m.defense = v))),
         field('Firepower', dieSelect(fpOpts, m.firepower, (v) => (m.firepower = v))),
         field('Prowess', dieSelect(DICE, m.prowess, (v) => (m.prowess = v))),
         field('Willpower', dieSelect(DICE, m.willpower, (v) => (m.willpower = v))),
       ),
       h('h3', {}, 'Ranged weapon'),
-      checklist('ranged', available(catalog.ranged, state.expansion), m.rangedWeapons, ctx, (n) => {
-        m.rangedWeapons = n;
-        changed();
-      }),
+      checklist(
+        'ranged',
+        available(catalog.ranged, state.expansion),
+        () => m.rangedWeapons,
+        (n) => {
+          m.rangedWeapons = n;
+          touched();
+        },
+        ctx,
+      ),
       h('h3', {}, 'Close combat weapon'),
-      checklist('close', available(catalog.close, state.expansion), m.closeWeapons, ctx, (n) => {
-        m.closeWeapons = n;
-        changed();
-      }),
+      checklist(
+        'close',
+        available(catalog.close, state.expansion),
+        () => m.closeWeapons,
+        (n) => {
+          m.closeWeapons = n;
+          touched();
+        },
+        ctx,
+      ),
       h('h3', {}, 'Equipment'),
-      checklist('equipment', available(catalog.equipment, state.expansion), m.equipment, ctx, (n) => {
-        m.equipment = n;
-        changed();
-      }),
+      checklist(
+        'equipment',
+        available(catalog.equipment, state.expansion),
+        () => m.equipment,
+        (n) => {
+          m.equipment = n;
+          touched();
+        },
+        ctx,
+      ),
       h('h3', {}, 'Psychic powers'),
-      checklist('powers', available(catalog.powers, state.expansion), m.powers, ctx, (n) => {
-        m.powers = n;
-        changed();
-      }),
+      checklist(
+        'powers',
+        available(catalog.powers, state.expansion),
+        () => m.powers,
+        (n) => {
+          m.powers = n;
+          touched();
+        },
+        ctx,
+      ),
       h('ul', { class: 'warnings', 'data-model-warnings': m.id }),
     );
   }
@@ -2719,21 +2867,40 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       state.name = nameInput.value;
       save();
     });
-    const targetInput = h('input', { type: 'number', min: '1', value: String(state.target), style: 'width:6em' });
+    const targetInput = h('input', {
+      type: 'text',
+      inputmode: 'numeric',
+      list: 'targets',
+      value: String(state.target),
+      style: 'width:6em',
+    });
     targetInput.addEventListener('input', () => {
       state.target = Number(targetInput.value) || 0;
       save();
       refreshStatus();
     });
 
+    // The leader is shown first
+    const ordered = [...state.models].sort((a, b) => Number(b.isLeader) - Number(a.isLeader));
+
     root.append(
       h(
         'div',
         { class: 'toolbar' },
-        h('a', { href: '#/' }, '← Library'),
+        h('a', { href: '#/', onClick: flush }, '← Library'),
         h('span', { class: 'spacer' }),
         h('span', { class: 'warnings warning', 'data-save-status': true }),
-        h('button', { class: 'primary', onClick: () => (location.hash = `#/wb/${state.id}/print`) }, 'Print'),
+        h(
+          'button',
+          {
+            class: 'primary',
+            onClick: () => {
+              flush();
+              location.hash = `#/wb/${state.id}/print`;
+            },
+          },
+          'Print',
+        ),
       ),
       h(
         'div',
@@ -2743,23 +2910,16 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           { class: 'row' },
           h('label', {}, 'Warband name', nameInput),
           h('label', {}, 'Points target', targetInput),
-          h(
-            'label',
-            { class: 'inline' },
-            Object.assign(h('input', { type: 'checkbox' }), {
-              checked: state.expansion,
-              onchange: (e: Event) => {
-                state.expansion = (e.target as HTMLInputElement).checked;
-                changed();
-              },
-            }),
-            'Include fan expansion',
-          ),
+          h('datalist', { id: 'targets' }, ...TARGET_PRESETS.map((n) => h('option', { value: String(n) }))),
+          toggle('Include fan expansion', state.expansion, (v) => {
+            state.expansion = v;
+            changed();
+          }),
           h(
             'label',
             {},
             'Warband trait',
-            traitSelect(available(catalog.warbandTraits, state.expansion), state.warbandTrait, (v) => {
+            traitPicker('warbandTraits', state.warbandTrait, (v) => {
               state.warbandTrait = v;
               changed();
             }),
@@ -2768,7 +2928,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         ),
         h('ul', { class: 'warnings', 'data-warband-warnings': true }),
       ),
-      h('div', { class: 'models' }, ...state.models.map((m) => modelPanel(m, ctx))),
+      h('div', { class: 'models' }, ...ordered.map((m) => modelPanel(m, ctx))),
       h(
         'div',
         { class: 'toolbar' },
@@ -2791,26 +2951,52 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
 }
 ```
 
-- [ ] **Step 2: Simplify the warband-warnings refresh**
+Note: the per-warband warnings list is an `ul` whose children are replaced in place, so `refreshStatus` never swaps the element itself.
 
-The `refreshStatus` draft above replaces the warnings node and then tries to re-tag it. Replace that block with a stable container: change the header line to `h('div', { 'data-warband-warnings': true })` in `draw()`, and in `refreshStatus()` replace the two warband-warning statements with:
+- [ ] **Step 2: Flush pending edits and reset scroll when the view changes**
+
+In `src/main.ts` add `import { flushEditor, renderEditor } from './ui/editor-view';` (replacing the existing editor import) and change `route()` to start with:
 
 ```ts
-    root
-      .querySelector<HTMLElement>('[data-warband-warnings]')
-      ?.replaceChildren(warningsList(all.filter((w) => w.scope === 'warband')));
+function route() {
+  flushEditor(); // write any debounced edit before the next view reads storage
+  app.replaceChildren();
+  window.scrollTo(0, 0);
+  // ... rest unchanged
 ```
 
-- [ ] **Step 3: Verify manually**
+- [ ] **Step 3: Add the supporting styles to `src/style.css`**
+
+```css
+.checklist .item {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.checklist .item small {
+  font-size: 0.8em;
+}
+.trait {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 28em;
+}
+```
+
+- [ ] **Step 4: Verify manually**
 
 Run: `npm run build` (must succeed), then `npm run dev`:
-- Create a warband; add models; change attributes; costs and warnings update live.
-- Type in a name field: focus is not lost.
+- Create a warband; add models; change attributes; costs and warnings update live. The leader is always listed first.
+- Type in a name field: focus is not lost. Click "← Library" or Print immediately after typing: the new name is there.
+- Tick an item far down a long list: the list does not jump back to the top. Arrow through a Speed select with the keyboard: it keeps focus.
 - Reload: everything is still there.
-- Turn on the expansion: expansion items and traits appear; turn it off with an expansion item selected: the item stays checked and a warning appears.
+- Turn on the expansion: expansion items and traits appear, with their rules text shown. Turn it off with an expansion item or trait selected: it stays selected (the trait is labelled "(expansion)") and a warning appears.
 - Over-limit choices (for example two equipment on a non-leader) are allowed and flagged.
+- Points target: typing 75 or 125 or any other number works, with 75 and 125 offered as suggestions.
+- Give the leader the Hero/Villain trait with the expansion on: the leader's cost shown is doubled and matches the warband total.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 npm run format
@@ -2832,7 +3018,7 @@ Layout rules: pages hold 8 cards; the first card is the warband summary card; ca
 ```ts
 import type { ModelSpec, Warband } from '../model/types';
 import { lookup } from '../rules/catalog';
-import { displayStats, modelCost, contextOf, warbandCost } from '../rules/engine';
+import { contextOf, displayCost, displayStats, warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
 import { h } from './dom';
 
@@ -2877,7 +3063,7 @@ function unitCard(m: ModelSpec, wb: Warband) {
         h('b', {}, m.name || 'Unnamed'),
         m.isLeader && h('span', { class: 'tag' }, trait ? `Leader · ${trait}` : 'Leader'),
         m.powerful && h('span', { class: 'tag' }, 'Powerful'),
-        h('span', { class: 'pts' }, `${modelCost(m, ctx).total} pts`),
+        h('span', { class: 'pts' }, `${displayCost(m, ctx)} pts`),
       ),
       h(
         'div',
@@ -2937,13 +3123,18 @@ export function fitCards(root: HTMLElement) {
   }
 }
 
+let detachCurrent: (() => void) | undefined;
+
 export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
+  detachCurrent?.(); // drop the previous print view's beforeprint listener
   const wb = lib.get(id);
   if (!wb) {
     root.append(h('p', {}, 'Warband not found. '), h('a', { href: '#/' }, 'Back to the library'));
     return;
   }
-  const cards = [summaryCard(wb), ...wb.models.map((m) => unitCard(m, wb))];
+  // The leader's card comes first, as in the editor
+  const ordered = [...wb.models].sort((a, b) => Number(b.isLeader) - Number(a.isLeader));
+  const cards = [summaryCard(wb), ...ordered.map((m) => unitCard(m, wb))];
   const pages: HTMLElement[] = [];
   for (let i = 0; i < cards.length; i += 8) {
     pages.push(h('div', { class: 'sheet' }, ...cards.slice(i, i + 8)));
@@ -2970,6 +3161,7 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
   };
   refit();
   window.addEventListener('beforeprint', refit);
+  detachCurrent = () => window.removeEventListener('beforeprint', refit);
 }
 ```
 
@@ -2981,7 +3173,9 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
   display: flex;
   flex-direction: column;
   align-items: center;
+  align-items: safe center; /* on a narrow screen, scroll rather than clip the left edge */
   gap: 16px;
+  overflow-x: auto;
 }
 .sheet {
   display: grid;
@@ -3040,8 +3234,8 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
 }
 
 @page {
-  size: auto portrait;
-  margin: 0.5in;
+  size: portrait;
+  margin: 0.4in;
 }
 @media print {
   body {
@@ -3072,7 +3266,7 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
 }
 ```
 
-Note: `@page { size: auto portrait }` is not valid in every browser; if a browser rejects it, use `size: portrait;` instead. Verify in Step 3 in at least Chromium and Firefox.
+Note: the margin is 0.4 in rather than 0.5 in so a Letter page (11 in tall) has a little slack over the 10 in sheet; with exactly 1 in of margins, rounding could push each sheet onto an extra blank page. Letter's printable area is then 7.7 × 10.2 in and A4's about 7.5 × 10.9 in, both larger than the 7 × 10 in sheet.
 
 - [ ] **Step 3: Verify manually**
 
@@ -3104,7 +3298,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Install the browser**
 
 Run: `npx playwright install chromium`
-Expected: Chromium downloads.
+Expected: Chromium downloads. If a later run cannot launch the browser on a fresh Linux machine, use `npx playwright install --with-deps chromium` instead (it needs sudo for the system libraries).
 
 - [ ] **Step 2: Create `playwright.config.ts`**
 
@@ -3132,8 +3326,16 @@ test('a warband survives a reload', async ({ page }) => {
   await page.getByRole('button', { name: 'New warband' }).click();
   await page.getByLabel('Warband name').fill('Persistent Weirdos');
   await page.getByLabel('Model name').first().fill('Big Boss');
-  // Autosave is debounced; wait for it before reloading
-  await page.waitForTimeout(500);
+  // Autosave is debounced; wait until the edit has reached local storage before reloading
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage)
+          .map((k) => localStorage.getItem(k))
+          .join(''),
+      ),
+    )
+    .toContain('Big Boss');
   await page.reload();
   await expect(page.getByLabel('Warband name')).toHaveValue('Persistent Weirdos');
   await expect(page.getByLabel('Model name').first()).toHaveValue('Big Boss');
@@ -3148,7 +3350,7 @@ test('print view gives equal-sized cards, eight to a page, in portrait', async (
   for (let i = 0; i < 9; i++) await page.getByRole('button', { name: 'Add model' }).click();
   // Give one model a lot of content so card sizes would differ if they depended on it
   await page.getByLabel('Model name').nth(1).fill('A model with an extremely long name that goes on and on');
-  await page.waitForTimeout(500);
+  // The editor's Print button flushes any pending autosave before it navigates
   await page.getByRole('button', { name: 'Print' }).click();
   await page.emulateMedia({ media: 'print' });
 
@@ -3165,6 +3367,8 @@ test('print view gives equal-sized cards, eight to a page, in portrait', async (
     expect(h).toBe(240); // 2.5 in at 96 dpi
   }
   await expect(page.locator('.sheet')).toHaveCount(2);
+  await expect(page.locator('.sheet').nth(0).locator('.card')).toHaveCount(8);
+  await expect(page.locator('.sheet').nth(1).locator('.card')).toHaveCount(3);
 
   const pdf = await page.pdf({ preferCSSPageSize: false, format: 'Letter' });
   expect(pdf.byteLength).toBeGreaterThan(1000);
@@ -3223,7 +3427,7 @@ Warbands are stored per browser and per site address; they do not sync between d
 
 ## Rules data
 
-The tables are in `src/rules/data/` (`core.ts` and `expansion.ts`), transcribed from the rules PDFs with page references. `src/rules/examples.test.ts` checks the engine against the example warbands in both PDFs. Two example costs printed in the core PDF (Astral and Vampire) disagree with the cost tables; the tests record both numbers.
+The tables are in `src/rules/data/` (`core.ts` and `expansion.ts`), transcribed from the rules PDFs with page references. `src/rules/examples.test.ts` checks the engine against the example warbands in both PDFs. Twelve example costs printed in the PDFs (Astral and Vampire in the core rules, ten in the expansion) disagree with the cost tables; the tests record both numbers.
 ```
 
 - [ ] **Step 2: Run the full check**
