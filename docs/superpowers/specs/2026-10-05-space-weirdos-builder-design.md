@@ -25,13 +25,24 @@ Out of scope: the hobby warband tokens PDF, accounts or server-side sync, file-s
 
 ```
 src/
+  main.ts               entry point and hash router
+  style.css             screen and print styles
   rules/
+    types.ts            rule data types
+    catalog.ts          lookups over the core and expansion tables
     data/core.ts        core tables (costs, weapons, equipment, powers, traits)
     data/expansion.ts   expansion tables
     engine.ts           pure functions: costs, trait effects, warnings
-  model/                warband and model types, schemaVersion
-  storage/              library, autosave, export/import, migrations
-  ui/                   library, editor, print view
+  model/
+    types.ts            warband and model types, schemaVersion
+    factory.ts          new warband and model creation
+  storage/
+    kv.ts               localStorage wrapper that tolerates it being unavailable
+    library.ts          library of warbands, autosave
+    validate.ts         import validation and migrate()
+  ui/
+    dom.ts              small DOM helper
+    library-view.ts, editor-view.ts, print-view.ts
 ```
 
 - Data entries carry a `source` (`core` or `expansion`) and a page reference.
@@ -62,7 +73,7 @@ Hash-routed screens, no server needed.
 
 - **Library:** list of saved warbands (name, points, model count). New, duplicate, rename, delete, import JSON, export one or all.
 - **Editor:** header with warband name, points target (75, 125 or custom), expansion toggle, warband trait, running total and warnings. Below, a list of model editors with the leader first.
-- **Model editor:** name, leader flag, leader trait; pickers for Spd, Def, Fp, Prw, Will; ranged weapon; close combat weapon; equipment; psychic powers. Live cost and warnings. Picker rows show cost and notes, with full rule text on hover or tap. Defence modifiers such as Heavy Armor's +1 are shown as in the example warbands.
+- **Model editor:** name, leader flag, leader trait; pickers for Spd, Def, Fp, Prw, Will; ranged weapons, close combat weapons, equipment and psychic powers as checklists. Live cost and warnings. Picker rows show cost and notes, with full rule text on hover or tap. Defence modifiers such as Heavy Armor's +1 are shown as in the example warbands.
 - **Print:** a print preview page, also printable directly.
 
 Single column on phones, two columns on wide screens. Follows system dark mode on screen; always prints black on white.
@@ -73,7 +84,7 @@ Single column on phones, two columns on wide screens. Follows system dark mode o
 - A 2×4 grid of fixed 3.5×2.5 in cards (7×10 in in total), so every card is the same size whatever its content. Text shrinks to a minimum size; a card that still overflows is flagged on screen before printing.
 - Card content: name, cost, the five attributes, weapons with notes, equipment, psychic powers. No token boxes.
 - The first card is a warband summary card: name, warband trait (shown once only), points total and leader trait. Unit cards follow.
-- Optional extra: a one-page quick reference (Under Fire and Under Attack tables).
+- Optional extra, not built: a one-page quick reference (Under Fire and Under Attack tables).
 
 ## Storage
 
