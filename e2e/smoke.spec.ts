@@ -55,3 +55,45 @@ test('print view gives equal-sized cards, eight to a page, in portrait', async (
   const pdf = await page.pdf({ preferCSSPageSize: false, format: 'Letter' });
   expect(pdf.byteLength).toBeGreaterThan(1000);
 });
+
+test('a model id containing quote and bracket characters does not break the editor', async ({
+  page,
+}) => {
+  const model = {
+    id: 'a"]',
+    name: 'Odd Id',
+    isLeader: true,
+    leaderTrait: null,
+    powerful: false,
+    speed: 1,
+    defense: '2d6',
+    firepower: 'none',
+    prowess: '2d6',
+    willpower: '2d6',
+    rangedWeapons: [],
+    closeWeapons: [],
+    equipment: [],
+    powers: [],
+  };
+  const warband = {
+    id: 'odd-wb',
+    schemaVersion: 1,
+    name: 'Odd Ids',
+    target: 75,
+    expansion: false,
+    warbandTrait: null,
+    models: [model],
+    updatedAt: new Date().toISOString(),
+  };
+  await page.goto('/');
+  page.on('dialog', (d) => d.accept());
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'odd.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(warband)),
+  });
+  await page.getByRole('link', { name: 'Odd Ids' }).click();
+  await expect(page.getByLabel('Model name').first()).toHaveValue('Odd Id');
+  await expect(page.locator('.panel .total').filter({ hasText: /pts$/ }).first()).toBeVisible();
+  await expect(page.locator('[data-total]')).toContainText('/ 75 points');
+});

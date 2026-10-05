@@ -74,6 +74,9 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     draw();
   };
 
+  /** Per-model elements from the latest draw, keyed by the model object (ids are not selector-safe). */
+  const panels = new Map<ModelSpec, { cost: HTMLElement; warnings: HTMLElement }>();
+
   const warningsList = (ws: Warning[]) => ws.map((w) => h('li', { class: w.level }, w.message));
 
   function refreshStatus() {
@@ -89,11 +92,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       .querySelector<HTMLElement>('[data-warband-warnings]')
       ?.replaceChildren(...warningsList(all.filter((w) => w.scope === 'warband')));
     for (const m of state.models) {
-      const costEl = root.querySelector<HTMLElement>(`[data-cost="${m.id}"]`);
-      if (costEl) costEl.textContent = `${displayCost(m, ctx)} pts`;
-      root
-        .querySelector<HTMLElement>(`[data-model-warnings="${m.id}"]`)
-        ?.replaceChildren(...warningsList(all.filter((w) => w.scope === m.id)));
+      const els = panels.get(m);
+      if (!els) continue;
+      els.cost.textContent = `${displayCost(m, ctx)} pts`;
+      els.warnings.replaceChildren(...warningsList(all.filter((w) => w.scope === m.id)));
     }
     const saveEl = root.querySelector<HTMLElement>('[data-save-status]');
     if (saveEl) saveEl.textContent = saveFailed ? 'Could not save! Use Export to keep a copy.' : '';
@@ -205,6 +207,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       save();
     });
 
+    const costEl = h('span', { class: 'total' }, '');
+    const warningsEl = h('ul', { class: 'warnings' });
+    panels.set(m, { cost: costEl, warnings: warningsEl });
+
     return h(
       'div',
       { class: 'panel' },
@@ -212,7 +218,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         'div',
         { class: 'row' },
         field('Name', nameInput),
-        h('span', { class: 'total', 'data-cost': m.id }, ''),
+        costEl,
         toggle('Leader', m.isLeader, (v) => {
           m.isLeader = v;
           if (!v) m.leaderTrait = null;
@@ -318,12 +324,13 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         },
         ctx,
       ),
-      h('ul', { class: 'warnings', 'data-model-warnings': m.id }),
+      warningsEl,
     );
   }
 
   function draw() {
     root.replaceChildren();
+    panels.clear();
     const ctx = contextOf(state);
 
     const nameInput = h('input', { value: state.name, 'aria-label': 'Warband name' });

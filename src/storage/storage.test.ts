@@ -21,6 +21,18 @@ describe('parseWarband', () => {
     expect(() => parseWarband(null)).toThrow(/object/);
   });
 
+  it('makes model ids unique, regenerating empty and duplicate ids', () => {
+    const wb: any = newWarband('Dupes');
+    wb.models = [newModel(), newModel(), newModel()];
+    wb.models[0].id = 'same';
+    wb.models[1].id = 'same';
+    wb.models[2].id = '';
+    const ids = parseWarband(JSON.parse(JSON.stringify(wb))).models.map((m) => m.id);
+    expect(ids[0]).toBe('same');
+    expect(new Set(ids).size).toBe(3);
+    expect(ids.every((id) => id !== '')).toBe(true);
+  });
+
   it('rejects an unsupported future schema version', () => {
     const wb: any = { ...newWarband(), schemaVersion: 99 };
     expect(() => parseWarband(wb)).toThrow(/version/i);

@@ -1,3 +1,4 @@
+import { newId } from '../model/factory';
 import { SCHEMA_VERSION, type ModelSpec, type Warband } from '../model/types';
 
 const DICE = ['2d6', '2d8', '2d10'];
@@ -62,6 +63,16 @@ export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
+/** Model ids key the editor's warnings, so give an empty or repeated id a fresh one. */
+function uniqueIds(models: ModelSpec[]): ModelSpec[] {
+  const seen = new Set<string>();
+  for (const m of models) {
+    if (m.id === '' || seen.has(m.id)) m.id = newId();
+    seen.add(m.id);
+  }
+  return models;
+}
+
 export function parseWarband(raw: unknown): Warband {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
     throw new Invalid('warband: expected an object');
@@ -78,7 +89,7 @@ export function parseWarband(raw: unknown): Warband {
     target: target as number,
     expansion: bool(o, 'expansion', ''),
     warbandTrait: strOrNull(o, 'warbandTrait', ''),
-    models: (o.models as unknown[]).map(parseModel),
+    models: uniqueIds((o.models as unknown[]).map(parseModel)),
     updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : new Date().toISOString(),
   };
 }
