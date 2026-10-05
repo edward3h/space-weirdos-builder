@@ -1,0 +1,163 @@
+:root {
+  --bg: #fafafa;
+  --fg: #1c1c1c;
+  --muted: #666;
+  --card: #fff;
+  --border: #d0d0d0;
+  --accent: #2b5fd9;
+  --warn: #b3261e;
+  --info: #7a5a00;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a;
+    --fg: #e8e8e8;
+    --muted: #9a9a9a;
+    --card: #222427;
+    --border: #3a3d41;
+    --accent: #7ea2ff;
+    --warn: #ff8a80;
+    --info: #e6c35c;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    16px/1.4 system-ui,
+    sans-serif;
+}
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.banner-warning {
+  background: var(--warn);
+  color: #fff;
+  padding: 8px 16px;
+}
+h1,
+h2,
+h3 {
+  margin: 0.4em 0;
+}
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+button {
+  cursor: pointer;
+}
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+.toolbar .spacer {
+  flex: 1;
+}
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+.row label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85em;
+  color: var(--muted);
+  gap: 2px;
+}
+.row label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.warnings {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.warnings .warning {
+  color: var(--warn);
+}
+.warnings .info {
+  color: var(--info);
+}
+.total {
+  font-weight: 600;
+}
+.total.over {
+  color: var(--warn);
+}
+.checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 12px;
+  max-height: 14em;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.checklist label {
+  display: flex;
+  gap: 6px;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+.checklist .cost {
+  color: var(--muted);
+}
+.models {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .models {
+    grid-template-columns: 1fr;
+  }
+}
+table.list {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.list td,
+table.list th {
+  text-align: left;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.muted {
+  color: var(--muted);
+}
+td.actions button {
+  margin: 0 4px 4px 0;
+}
