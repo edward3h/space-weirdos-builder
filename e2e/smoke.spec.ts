@@ -23,7 +23,8 @@ test('a warband survives a reload', async ({ page }) => {
     .toContain('Big Boss');
   await page.reload();
   await expect(page.getByLabel('Warband name')).toHaveValue('Persistent Weirdos');
-  await expect(page.getByLabel('Model name').first()).toHaveValue('Big Boss');
+  await expect(page.locator('.model-panel').first()).toContainText('Big Boss');
+  await expect(page.getByLabel('Model name')).toHaveCount(0); // view mode: no form fields
   await page.goto('/#/');
   await expect(page.getByRole('link', { name: 'Persistent Weirdos' })).toBeVisible();
 });
@@ -107,6 +108,8 @@ test('a model id containing quote and bracket characters does not break the edit
     input.dispatchEvent(new Event('change'));
   }, JSON.stringify(warband));
   await page.getByRole('link', { name: 'Odd Ids' }).click();
+  await expect(page.locator('.model-panel').first()).toContainText('Odd Id');
+  await page.getByRole('button', { name: /^Edit/ }).click();
   await expect(page.getByLabel('Model name').first()).toHaveValue('Odd Id');
   await expect(page.locator('.panel .total').filter({ hasText: /pts$/ }).first()).toBeVisible();
   await expect(page.locator('[data-total]')).toContainText('/ 75 points');
@@ -218,7 +221,7 @@ test('weapons, equipment and powers are chosen from drop-downs that show details
 }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'New warband' }).click();
-  const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
+  const model = page.locator('.model-panel').first();
 
   // The drop-down shows names only: no costs or notes in the option text
   await expect(model.getByLabel('Choose equipment')).toHaveCount(0); // hidden until "+" is pressed
@@ -272,7 +275,9 @@ test('weapons, equipment and powers are chosen from drop-downs that show details
     )
     .toContain('cybernetics');
   await page.reload();
-  await expect(model.locator('.details', { hasText: '+1 to Prw rolls' })).toBeVisible();
+  await expect(model).toContainText('Cybernetics');
+  await expect(model).toContainText('+1 to Prw rolls');
+  await model.getByRole('button', { name: /^Edit/ }).click();
   await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveValue('cybernetics');
 });
 
@@ -282,7 +287,7 @@ test('an expansion item stays chosen, and flagged, when the expansion is switche
   await page.goto('/');
   await page.getByRole('button', { name: 'New warband' }).click();
   await page.getByLabel('Include fan expansion').check();
-  const model = page.locator('.panel', { has: page.getByLabel('Model name') }).first();
+  const model = page.locator('.model-panel').first();
   await addItem(model, 'equipment', 'comms-unit');
   await expect(model.getByLabel('Equipment 1', { exact: true })).toHaveValue('comms-unit');
 
@@ -296,4 +301,57 @@ test('an expansion item stays chosen, and flagged, when the expansion is switche
   await model.getByRole('button', { name: 'Add equipment' }).click();
   const offered = await model.getByLabel('Choose equipment').locator('option').allTextContents();
   expect(offered).not.toContain('Comms Unit');
+});
+
+test('a model card is read-only until Edit is pressed and goes back to view mode on Save', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  const model = page.locator('.model-panel').first();
+
+  // A brand-new, untouched model starts in edit mode so it can be filled in
+  await expect(model.getByLabel('Model name')).toBeVisible();
+  await model.getByLabel('Model name').fill('Boss');
+  await addItem(model, 'ranged weapon', 'shotgun');
+  await addItem(model, 'psychic power', 'fear');
+  await model.getByRole('button', { name: /^Save/ }).click();
+
+  // View mode: the name, stats, weapons and powers are shown, but no form controls
+  await expect(model).toContainText('Boss');
+  await expect(model).toContainText('Shotgun');
+  await expect(model).toContainText('Fear');
+  await expect(model).toContainText('Spd');
+  await expect(model.locator('select, input, textarea')).toHaveCount(0);
+  await expect(model.getByRole('button', { name: /^Remove/ })).toHaveCount(0);
+  await expect(model.getByRole('button', { name: /^Save/ })).toHaveCount(0);
+  await expect(model.locator('.total')).toContainText('pts');
+
+  // Edit brings the form back, with the values as they were
+  await model.getByRole('button', { name: /^Edit/ }).click();
+  await expect(model.getByLabel('Model name')).toHaveValue('Boss');
+  await expect(model.getByLabel('Ranged weapon 1', { exact: true })).toHaveValue('shotgun');
+  await model.getByLabel('Model name').fill('Big Boss');
+  await model.getByRole('button', { name: /^Save/ }).click();
+  await expect(model).toContainText('Big Boss');
+
+  // Other cards are not affected by editing one, and a newly added model starts in edit mode
+  await page.getByRole('button', { name: 'Add model' }).click();
+  await expect(page.getByLabel('Model name')).toBeFocused(); // focus goes to the new card
+  await expect(page.locator('.model-panel')).toHaveCount(2);
+  await expect(page.getByLabel('Model name')).toHaveCount(1);
+  await expect(page.locator('.model-panel').first()).toContainText('Big Boss');
+
+  // Edit mode is not remembered: after a reload every model is back in view mode
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage)
+          .map((k) => localStorage.getItem(k))
+          .join(''),
+      ),
+    )
+    .toContain('Big Boss');
+  await page.reload();
+  await expect(page.getByLabel('Model name')).toHaveCount(1); // the untouched new model only
 });

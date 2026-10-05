@@ -35,3 +35,15 @@ export function newWarband(name = 'New warband'): Warband {
     updatedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * True for a model that is still exactly as newModel() made it. The editor opens such
+ * models in edit mode, since they are waiting to be filled in.
+ */
+export function isPristine(m: ModelSpec): boolean {
+  const { id: _id, ...base } = newModel(m.isLeader);
+  const { id: _other, ...mine } = m;
+  return (Object.keys(base) as (keyof typeof base)[]).every(
+    (k) => JSON.stringify(mine[k]) === JSON.stringify(base[k]),
+  );
+}

@@ -1,4 +1,4 @@
-import { newModel } from '../model/factory';
+import { isPristine, newModel } from '../model/factory';
 import type { ModelSpec, Warband } from '../model/types';
 import { available, catalog, lookup } from '../rules/catalog';
 import {
@@ -13,6 +13,8 @@ import {
 import type { Item } from '../rules/types';
 import type { Library } from '../storage/library';
 import { h, select } from './dom';
+import { itemFacts } from './item-info';
+import { modelSummary } from './model-summary';
 
 const DICE = ['2d6', '2d8', '2d10'] as const;
 const TARGET_PRESETS = [75, 125];
@@ -82,7 +84,16 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
   };
 
   /** Per-model elements from the latest draw, keyed by the model object (ids are not selector-safe). */
-  const panels = new Map<ModelSpec, { cost: HTMLElement; warnings: HTMLElement }>();
+  const panels = new Map<
+    ModelSpec,
+    { el: HTMLElement; cost: HTMLElement; warnings: HTMLElement }
+  >();
+
+  /**
+   * Models being edited. Everything else shows the read-only summary. Not saved: after a
+   * reload only models that are still untouched (waiting to be filled in) open for editing.
+   */
+  const editing = new Set<ModelSpec>(state.models.filter(isPristine));
 
   const warningsList = (ws: Warning[]) => ws.map((w) => h('li', { class: w.level }, w.message));
 
@@ -123,9 +134,6 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     set: (next: string[]) => void,
     ctx: Context,
   ) {
-    const costKind = (
-      { ranged: 'ranged', close: 'close', equipment: 'equipment', powers: 'power' } as const
-    )[kind];
     const names = items.map((i) => ({ value: i.id, label: i.name }));
     const box = h('div', { class: 'picker' });
     let adding = false;
@@ -133,20 +141,10 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     const details = (item: Item | undefined, id: string) => {
       if (!item)
         return h('div', { class: 'details muted' }, `Unknown item “${id}” (kept as saved).`);
-      const x = item as Item & { maxShoot?: number; maxFight?: number; type?: string };
-      const cost = adjustedCost(item, costKind, ctx);
-      const facts = [`${cost} ${cost === 1 ? 'pt' : 'pts'}`];
-      if (x.maxShoot !== undefined)
-        facts.push(`max ${x.maxShoot} shoot action${x.maxShoot === 1 ? '' : 's'}`);
-      if (x.maxFight !== undefined)
-        facts.push(`max ${x.maxFight} fight action${x.maxFight === 1 ? '' : 's'}`);
-      if (kind === 'equipment') facts.push(x.type === 'A' ? 'Use Item action' : 'passive');
-      if (kind === 'powers') facts.push(`${x.type?.toLowerCase()} power`);
-      if (item.source === 'expansion') facts.push('expansion');
       return h(
         'div',
         { class: 'details muted' },
-        h('div', {}, facts.join(' · ')),
+        h('div', {}, itemFacts(kind, item, ctx)),
         item.notes && h('div', {}, item.notes),
       );
     };
@@ -259,7 +257,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     return h('label', { class: 'inline' }, box, label);
   };
 
-  function modelPanel(m: ModelSpec, ctx: Context) {
+  function editPanel(m: ModelSpec, ctx: Context) {
     const dieSelect = <T extends string>(opts: readonly T[], value: T, set: (v: T) => void) =>
       select(
         opts.map((o) => ({ value: o, label: o })),
@@ -288,11 +286,26 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
 
     const costEl = h('span', { class: 'total' }, '');
     const warningsEl = h('ul', { class: 'warnings' });
-    panels.set(m, { cost: costEl, warnings: warningsEl });
+    const saveLabel = () => `Save ${m.name || 'model'}`;
+    const saveButton = h(
+      'button',
+      {
+        type: 'button',
+        class: 'primary save',
+        'aria-label': saveLabel(),
+        onClick: () => {
+          editing.delete(m);
+          flush(); // write a pending name edit before the card is redrawn
+          swap(m, 'button.edit');
+        },
+      },
+      'Save',
+    );
+    nameInput.addEventListener('input', () => saveButton.setAttribute('aria-label', saveLabel()));
 
-    return h(
+    const el = h(
       'div',
-      { class: 'panel' },
+      { class: 'panel model-panel editing' },
       h(
         'div',
         { class: 'row' },
@@ -318,6 +331,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           },
           'Remove',
         ),
+        saveButton,
       ),
       m.isLeader &&
         h(
@@ -409,6 +423,57 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       ),
       warningsEl,
     );
+    panels.set(m, { el, cost: costEl, warnings: warningsEl });
+    return el;
+  }
+
+  /** The read-only card: name, cost, stats, weapons, equipment and powers, with an Edit button. */
+  function viewPanel(m: ModelSpec, ctx: Context) {
+    const costEl = h('span', { class: 'total' }, '');
+    const warningsEl = h('ul', { class: 'warnings' });
+    const trait = m.leaderTrait ? lookup('leaderTraits', m.leaderTrait) : undefined;
+    const el = h(
+      'div',
+      { class: 'panel model-panel' },
+      h(
+        'div',
+        { class: 'row' },
+        h('b', { class: 'model-name' }, m.name || 'Unnamed'),
+        m.isLeader && h('span', { class: 'tag' }, trait ? `Leader · ${trait.name}` : 'Leader'),
+        m.powerful && h('span', { class: 'tag' }, 'Powerful'),
+        costEl,
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'edit',
+            'aria-label': `Edit ${m.name || 'model'}`,
+            onClick: () => {
+              editing.add(m);
+              swap(m, 'input[aria-label="Model name"]');
+            },
+          },
+          'Edit',
+        ),
+      ),
+      modelSummary(m, ctx),
+      warningsEl,
+    );
+    panels.set(m, { el, cost: costEl, warnings: warningsEl });
+    return el;
+  }
+
+  const modelPanel = (m: ModelSpec, ctx: Context) =>
+    editing.has(m) ? editPanel(m, ctx) : viewPanel(m, ctx);
+
+  /** Redraw one card in place (so the rest of the page keeps its scroll position and focus). */
+  function swap(m: ModelSpec, focus: string) {
+    const old = panels.get(m);
+    if (!old) return;
+    const next = modelPanel(m, contextOf(state));
+    old.el.replaceWith(next);
+    refreshStatus();
+    next.querySelector<HTMLElement>(focus)?.focus();
   }
 
   function draw() {
@@ -505,8 +570,14 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           'button',
           {
             onClick: () => {
-              state.models.push(newModel(false));
+              const added = newModel(false);
+              state.models.push(added);
+              editing.add(added); // a new model is waiting to be filled in
               changed();
+              panels
+                .get(added)
+                ?.el.querySelector<HTMLElement>('input[aria-label="Model name"]')
+                ?.focus();
             },
           },
           'Add model',
