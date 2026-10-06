@@ -355,3 +355,22 @@ test('a model card is read-only until Edit is pressed and goes back to view mode
   await page.reload();
   await expect(page.getByLabel('Model name')).toHaveCount(1); // the untouched new model only
 });
+
+test('expansion items are not labelled "expansion" in the details', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.getByLabel('Include fan expansion').check();
+  const model = page.locator('.model-panel').first();
+  await addItem(model, 'ranged weapon', 'smg');
+  await addItem(model, 'psychic power', 'psychic-aura');
+
+  // In edit mode, under the drop-downs
+  await expect(model.locator('.details', { hasText: '2 pts · max 3 shoot actions' })).toBeVisible();
+  await expect(model.locator('.details', { hasText: /expansion/i })).toHaveCount(0);
+
+  // In view mode
+  await model.getByRole('button', { name: /^Save/ }).click();
+  await expect(model).toContainText('Submachine Gun (SMG)');
+  await expect(model).toContainText('Psychic Aura');
+  await expect(model).not.toContainText(/expansion/i);
+});

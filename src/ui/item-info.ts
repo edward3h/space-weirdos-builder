@@ -21,6 +21,5 @@ export function itemFacts(kind: ItemKind, item: Item, ctx: Context): string {
     facts.push(`max ${x.maxFight} fight action${x.maxFight === 1 ? '' : 's'}`);
   if (kind === 'equipment') facts.push(x.type === 'A' ? 'Use Item action' : 'passive');
   if (kind === 'powers') facts.push(`${x.type?.toLowerCase()} power`);
-  if (item.source === 'expansion') facts.push('expansion');
   return facts.join(' · ');
 }
