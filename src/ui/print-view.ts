@@ -3,6 +3,7 @@ import { lookup } from '../rules/catalog';
 import { contextOf, displayCost, displayStats, warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
 import { h } from './dom';
+import { itemTables } from './item-tables';
 
 const MIN_FONT_PX = 8;
 
@@ -16,26 +17,6 @@ function line(label: string, text: string) {
 function unitCard(m: ModelSpec, wb: Warband) {
   const ctx = contextOf(wb);
   const s = displayStats(m);
-  const ranged = m.rangedWeapons.map((id) => {
-    const w = lookup('ranged', id);
-    return w
-      ? `${w.name} (max ${w.maxShoot}${w.notes ? `; ${w.notes}` : ''})`
-      : nameOf('ranged', id);
-  });
-  const close = m.closeWeapons.map((id) => {
-    const w = lookup('close', id);
-    return w
-      ? `${w.name} (max ${w.maxFight}${w.notes ? `; ${w.notes}` : ''})`
-      : nameOf('close', id);
-  });
-  const equip = m.equipment.map((id) => {
-    const e = lookup('equipment', id);
-    return e ? `${e.name} (${e.type})${e.notes ? `: ${e.notes}` : ''}` : nameOf('equipment', id);
-  });
-  const powers = m.powers.map((id) => {
-    const p = lookup('powers', id);
-    return p ? `${p.name} (${p.type})${p.notes ? `: ${p.notes}` : ''}` : nameOf('powers', id);
-  });
   const trait = m.leaderTrait ? nameOf('leaderTraits', m.leaderTrait) : '';
 
   return h(
@@ -65,10 +46,7 @@ function unitCard(m: ModelSpec, wb: Warband) {
           ] as const
         ).map(([k, v]) => h('div', {}, h('small', {}, k), h('b', {}, v))),
       ),
-      ranged.length > 0 && line('Ranged', ranged.join('; ')),
-      close.length > 0 && line('Close', close.join('; ')),
-      equip.length > 0 && line('Equipment', equip.join('; ')),
-      powers.length > 0 && line('Powers', powers.join('; ')),
+      ...itemTables(m),
     ),
   );
 }

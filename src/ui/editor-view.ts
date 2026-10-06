@@ -456,7 +456,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           'Edit',
         ),
       ),
-      modelSummary(m, ctx),
+      modelSummary(m),
       warningsEl,
     );
     panels.set(m, { el, cost: costEl, warnings: warningsEl });

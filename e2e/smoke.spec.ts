@@ -327,6 +327,17 @@ test('a model card is read-only until Edit is pressed and goes back to view mode
   await expect(model.getByRole('button', { name: /^Save/ })).toHaveCount(0);
   await expect(model.locator('.total')).toContainText('pts');
 
+  // Weapons are in one table (Weapon, Actions, Notes); powers have their own without Actions
+  const weapons = model.locator('table.items').first();
+  await expect(weapons.locator('th')).toHaveText(['Weapon', 'Actions', 'Notes']);
+  // A new model starts with a default close combat weapon, so the ranged one makes two rows
+  await expect(weapons.locator('tbody tr')).toHaveCount(2);
+  await expect(weapons.locator('tbody tr').first().locator('td').first()).toHaveText('Shotgun');
+  await expect(model.locator('table.items').nth(1).locator('th')).toHaveText([
+    'Psychic power',
+    'Notes',
+  ]);
+
   // Edit brings the form back, with the values as they were
   await model.getByRole('button', { name: /^Edit/ }).click();
   await expect(model.getByLabel('Model name')).toHaveValue('Boss');
