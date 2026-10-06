@@ -10,7 +10,8 @@ const joinNotes = (...parts: (string | undefined)[]) => parts.filter(Boolean).jo
 function weaponRow(kind: 'ranged' | 'close', id: string): Row {
   const w = lookup(kind, id) as (Item & { maxShoot?: number; maxFight?: number }) | undefined;
   if (!w) return [`Unknown (${id})`, '', ''];
-  const actions = kind === 'ranged' ? `${w.maxShoot} shoot` : `${w.maxFight} fight`;
+  // A non-breaking space keeps the number and the action together when the cell wraps
+  const actions = kind === 'ranged' ? `${w.maxShoot}\u00a0shoot` : `${w.maxFight}\u00a0fight`;
   return [w.name, actions, w.notes ?? ''];
 }
 
