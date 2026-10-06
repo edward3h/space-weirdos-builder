@@ -4,6 +4,8 @@ A warband builder for [Space Weirdos](https://caseyg.itch.io/space-weirdos), the
 
 Build a warband, see its cost and any rule problems as you go, keep a library of warbands in your browser, and print unit cards for the table.
 
+**Try it: <https://edward3h.github.io/space-weirdos-builder/>**
+
 This is an unofficial fan tool. It is not affiliated with or endorsed by the game's author. It does not contain the rulebook: you need the game to play it, so please get it from the link above.
 
 ## Features
@@ -40,7 +42,9 @@ Before merging a change, `npm run format:check`, `npm test`, `npm run build` and
 
 ## Hosting
 
-`npm run build` produces static files in `dist/`. Host them on any static web server. The build uses relative paths, so it also works under a sub-path.
+The live site is published to GitHub Pages by a workflow (`.github/workflows/pages.yml`): every push to `main` runs the format check and unit tests, builds the site and deploys it.
+
+To host it yourself, `npm run build` produces static files in `dist/`. Host them on any static web server. The build uses relative paths, so it also works under a sub-path.
 
 Browsers block module scripts on `file://` pages, so serve the folder (for example with `npm run preview`) rather than double-clicking `index.html`.
 
