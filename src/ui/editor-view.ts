@@ -12,7 +12,7 @@ import {
 } from '../rules/engine';
 import type { Item } from '../rules/types';
 import type { Library } from '../storage/library';
-import { h, select } from './dom';
+import { h, select, setTitle } from './dom';
 import { itemFacts } from './item-info';
 import { modelSummary } from './model-summary';
 
@@ -32,7 +32,11 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
   detachCurrent?.();
   const wb = lib.get(id);
   if (!wb) {
-    root.append(h('p', {}, 'Warband not found. '), h('a', { href: '#/' }, 'Back to the library'));
+    setTitle('Warband not found');
+    root.append(
+      h('h1', { tabindex: -1 }, 'Warband not found'),
+      h('a', { href: '#/' }, 'Back to the library'),
+    );
     return;
   }
   const state: Warband = wb;
@@ -278,14 +282,16 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     ] as ModelSpec['firepower'][];
     const field = (label: string, el: Node) => h('label', {}, label, el);
 
-    const nameInput = h('input', { value: m.name, 'aria-label': 'Model name' });
+    const nameInput = h('input', { value: m.name, 'data-model-name': true });
+    const heading = h('h2', { class: 'sr-only' }, m.name || 'Unnamed');
     nameInput.addEventListener('input', () => {
       m.name = nameInput.value;
+      heading.textContent = m.name || 'Unnamed';
       save();
     });
 
     const costEl = h('span', { class: 'total' }, '');
-    const warningsEl = h('ul', { class: 'warnings' });
+    const warningsEl = h('ul', { class: 'warnings', 'aria-live': 'polite' });
     const saveLabel = () => `Save ${m.name || 'model'}`;
     const saveButton = h(
       'button',
@@ -301,15 +307,31 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       },
       'Save',
     );
-    nameInput.addEventListener('input', () => saveButton.setAttribute('aria-label', saveLabel()));
+    const removeLabel = () => `Remove ${m.name || 'model'}`;
+    const removeButton = h(
+      'button',
+      {
+        'aria-label': removeLabel(),
+        onClick: () => {
+          state.models = state.models.filter((x) => x !== m);
+          changed();
+        },
+      },
+      'Remove',
+    );
+    nameInput.addEventListener('input', () => {
+      saveButton.setAttribute('aria-label', saveLabel());
+      removeButton.setAttribute('aria-label', removeLabel());
+    });
 
     const el = h(
       'div',
       { class: 'panel model-panel editing' },
+      heading,
       h(
         'div',
         { class: 'row' },
-        field('Name', nameInput),
+        field('Model name', nameInput),
         costEl,
         toggle('Leader', m.isLeader, (v) => {
           m.isLeader = v;
@@ -321,16 +343,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
             m.powerful = v;
             changed();
           }),
-        h(
-          'button',
-          {
-            onClick: () => {
-              state.models = state.models.filter((x) => x !== m);
-              changed();
-            },
-          },
-          'Remove',
-        ),
+        removeButton,
         saveButton,
       ),
       m.isLeader &&
@@ -430,7 +443,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
   /** The read-only card: name, cost, stats, weapons, equipment and powers, with an Edit button. */
   function viewPanel(m: ModelSpec, ctx: Context) {
     const costEl = h('span', { class: 'total' }, '');
-    const warningsEl = h('ul', { class: 'warnings' });
+    const warningsEl = h('ul', { class: 'warnings', 'aria-live': 'polite' });
     const trait = m.leaderTrait ? lookup('leaderTraits', m.leaderTrait) : undefined;
     const el = h(
       'div',
@@ -438,7 +451,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       h(
         'div',
         { class: 'row' },
-        h('b', { class: 'model-name' }, m.name || 'Unnamed'),
+        h('h2', { class: 'model-name' }, m.name || 'Unnamed'),
         m.isLeader && h('span', { class: 'tag' }, trait ? `Leader · ${trait.name}` : 'Leader'),
         m.powerful && h('span', { class: 'tag' }, 'Powerful'),
         costEl,
@@ -450,7 +463,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
             'aria-label': `Edit ${m.name || 'model'}`,
             onClick: () => {
               editing.add(m);
-              swap(m, 'input[aria-label="Model name"]');
+              swap(m, 'input[data-model-name]');
             },
           },
           'Edit',
@@ -481,9 +494,13 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     panels.clear();
     const ctx = contextOf(state);
 
-    const nameInput = h('input', { value: state.name, 'aria-label': 'Warband name' });
+    const nameInput = h('input', { value: state.name, 'data-warband-name': true });
+    const heading = h('h1', { tabindex: -1 }, state.name || 'Unnamed warband');
+    setTitle(`Edit ${state.name || 'unnamed warband'}`);
     nameInput.addEventListener('input', () => {
       state.name = nameInput.value;
+      heading.textContent = state.name || 'Unnamed warband';
+      setTitle(`Edit ${state.name || 'unnamed warband'}`);
       save();
     });
     const targetInput = h('input', {
@@ -506,12 +523,13 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     const ordered = [...state.models].sort((a, b) => Number(b.isLeader) - Number(a.isLeader));
 
     root.append(
+      heading,
       h(
         'div',
         { class: 'toolbar' },
         h('a', { href: '#/', onClick: flush }, '← Library'),
         h('span', { class: 'spacer' }),
-        h('span', { class: 'status-warning', 'data-save-status': true }),
+        h('span', { class: 'status-warning', 'data-save-status': true, role: 'status' }),
         h(
           'button',
           {
@@ -558,9 +576,9 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               changed();
             }),
           ),
-          h('span', { class: 'total', 'data-total': true }),
+          h('span', { class: 'total', 'data-total': true, 'aria-live': 'polite' }),
         ),
-        h('ul', { class: 'warnings', 'data-warband-warnings': true }),
+        h('ul', { class: 'warnings', 'data-warband-warnings': true, 'aria-live': 'polite' }),
       ),
       h('div', { class: 'models' }, ...ordered.map((m) => modelPanel(m, ctx))),
       h(
@@ -574,10 +592,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               state.models.push(added);
               editing.add(added); // a new model is waiting to be filled in
               changed();
-              panels
-                .get(added)
-                ?.el.querySelector<HTMLElement>('input[aria-label="Model name"]')
-                ?.focus();
+              panels.get(added)?.el.querySelector<HTMLElement>('input[data-model-name]')?.focus();
             },
           },
           'Add model',

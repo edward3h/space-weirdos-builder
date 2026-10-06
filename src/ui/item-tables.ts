@@ -31,7 +31,14 @@ function powerRow(id: string): Row {
 function section(heads: string[], rows: Row[]) {
   const span = (cells: string[], i: number) => (i === cells.length - 1 ? 4 - cells.length : 0);
   const cell = (tag: 'th' | 'td', cells: string[], i: number) =>
-    h(tag, { colspan: span(cells, i) > 0 ? span(cells, i) + 1 : null }, cells[i]!);
+    h(
+      tag,
+      {
+        colspan: span(cells, i) > 0 ? span(cells, i) + 1 : null,
+        scope: tag === 'th' ? 'col' : null,
+      },
+      cells[i]!,
+    );
   const tr = (tag: 'th' | 'td', cells: string[]) =>
     h('tr', {}, ...cells.map((_, i) => cell(tag, cells, i)));
   return [h('thead', {}, tr('th', heads)), h('tbody', {}, ...rows.map((r) => tr('td', r)))];

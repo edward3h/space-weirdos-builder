@@ -1,5 +1,12 @@
 type Child = Node | string | null | false | undefined;
 
+const APP_TITLE = 'Space Weirdos Builder';
+
+/** Name the current view in the browser tab and the screen reader's page announcement. */
+export function setTitle(view: string): void {
+  document.title = `${view} – ${APP_TITLE}`;
+}
+
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Record<string, unknown> = {},

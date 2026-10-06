@@ -2,7 +2,7 @@ import type { ModelSpec, Warband } from '../model/types';
 import { lookup } from '../rules/catalog';
 import { contextOf, displayCost, displayStats, warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
-import { h } from './dom';
+import { h, setTitle } from './dom';
 import { itemTable } from './item-tables';
 
 const MIN_FONT_PX = 8;
@@ -94,9 +94,14 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
   detachCurrent?.(); // drop the previous print view's beforeprint listener
   const wb = lib.get(id);
   if (!wb) {
-    root.append(h('p', {}, 'Warband not found. '), h('a', { href: '#/' }, 'Back to the library'));
+    setTitle('Warband not found');
+    root.append(
+      h('h1', { tabindex: -1 }, 'Warband not found'),
+      h('a', { href: '#/' }, 'Back to the library'),
+    );
     return;
   }
+  setTitle(`Print ${wb.name || 'unnamed warband'}`);
   // The leader's card comes first, as in the editor
   const ordered = [...wb.models].sort((a, b) => Number(b.isLeader) - Number(a.isLeader));
   const cards = [summaryCard(wb), ...ordered.map((m) => unitCard(m, wb))];
@@ -105,8 +110,9 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
     pages.push(h('div', { class: 'sheet' }, ...cards.slice(i, i + 8)));
   }
 
-  const status = h('span', { class: 'status-warning', 'data-overflow': true });
+  const status = h('span', { class: 'status-warning', 'data-overflow': true, role: 'status' });
   root.append(
+    h('h1', { class: 'sr-only no-print', tabindex: -1 }, `Print ${wb.name || 'unnamed warband'}`),
     h(
       'div',
       { class: 'toolbar no-print' },
