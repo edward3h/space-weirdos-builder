@@ -1,0 +1,39 @@
+# Check every pull request: formatting, unit tests, type-check and build, and the
+# Playwright end-to-end tests. (Pushes to main are checked by the Pages workflow.)
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to the same pull request cancels the run still in progress
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-results
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
