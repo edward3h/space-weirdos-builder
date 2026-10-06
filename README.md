@@ -78,6 +78,6 @@ Where the rules are unclear the builder takes the simplest reading and warns rat
 
 ## Licence
 
-This project's code is free software, licensed under the [GNU General Public License, version 3](LICENSE) (`GPL-3.0-only`). You can redistribute and modify it under the terms of that licence; it comes with no warranty.
+This project's code is free software, licensed under the [GNU General Public License](LICENSE), version 3 or (at your option) any later version (`GPL-3.0-or-later`). You can redistribute and modify it under the terms of that licence; it comes with no warranty.
 
 The licence covers this code, not the game. The rules, names and text of Space Weirdos and its fan expansion belong to their authors, and the item names, costs and rule notes in `src/rules/data/` are transcribed from them for use with the game.
