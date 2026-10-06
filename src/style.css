@@ -223,15 +223,30 @@ td.actions button {
 .stats-line .stat small {
   color: var(--muted);
 }
-.summary-group h3 {
-  font-size: 0.95em;
-  margin: 8px 0 2px;
+table.items {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
 }
-.summary-item {
-  margin: 2px 0;
+table.items th,
+table.items td {
+  text-align: left;
+  vertical-align: top;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border);
 }
-.summary-item .notes {
+table.items th {
   font-size: 0.85em;
+  color: var(--muted);
+}
+.card table.items {
+  margin: 3px 0;
+}
+.card table.items th,
+.card table.items td {
+  padding: 0 3px;
+  border-bottom: 0.5px solid #888;
+  color: #000;
 }
 /* ---- Print view ---- */
 .sheets {
