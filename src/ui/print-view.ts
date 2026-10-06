@@ -3,7 +3,7 @@ import { lookup } from '../rules/catalog';
 import { contextOf, displayCost, displayStats, warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
 import { h } from './dom';
-import { itemTables } from './item-tables';
+import { itemTable } from './item-tables';
 
 const MIN_FONT_PX = 8;
 
@@ -46,7 +46,7 @@ function unitCard(m: ModelSpec, wb: Warband) {
           ] as const
         ).map(([k, v]) => h('div', {}, h('small', {}, k), h('b', {}, v))),
       ),
-      ...itemTables(m),
+      itemTable(m),
     ),
   );
 }

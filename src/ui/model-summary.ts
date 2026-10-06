@@ -1,7 +1,7 @@
 import type { ModelSpec } from '../model/types';
 import { displayStats } from '../rules/engine';
 import { h } from './dom';
-import { itemTables } from './item-tables';
+import { itemTable } from './item-tables';
 
 /** The read-only view of a model: its stats, then tables of weapons, equipment and powers. */
 export function modelSummary(m: ModelSpec): HTMLElement {
@@ -16,10 +16,5 @@ export function modelSummary(m: ModelSpec): HTMLElement {
     ] as const
   ).map(([k, v]) => h('div', { class: 'stat' }, h('small', {}, k), h('b', {}, v)));
 
-  return h(
-    'div',
-    { class: 'summary' },
-    h('div', { class: 'stats-line' }, ...stats),
-    ...itemTables(m),
-  );
+  return h('div', { class: 'summary' }, h('div', { class: 'stats-line' }, ...stats), itemTable(m));
 }

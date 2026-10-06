@@ -26,27 +26,30 @@ function powerRow(id: string): Row {
   return [p.name, joinNotes(`${p.type} power`, p.notes)];
 }
 
-function table(heads: string[], rows: Row[]) {
-  return h(
-    'table',
-    { class: 'items' },
-    h('thead', {}, h('tr', {}, ...heads.map((t) => h('th', {}, t)))),
-    h('tbody', {}, ...rows.map((r) => h('tr', {}, ...r.map((c) => h('td', {}, c))))),
-  );
+/** One section of the table: a heading row, then a row per item. A short row's last cell spans the rest. */
+function section(heads: string[], rows: Row[]) {
+  const span = (cells: string[], i: number) => (i === cells.length - 1 ? 4 - cells.length : 0);
+  const cell = (tag: 'th' | 'td', cells: string[], i: number) =>
+    h(tag, { colspan: span(cells, i) > 0 ? span(cells, i) + 1 : null }, cells[i]!);
+  const tr = (tag: 'th' | 'td', cells: string[]) =>
+    h('tr', {}, ...cells.map((_, i) => cell(tag, cells, i)));
+  return [h('thead', {}, tr('th', heads)), h('tbody', {}, ...rows.map((r) => tr('td', r)))];
 }
 
 /**
- * The read-only tables for a model: one for weapons (ranged and close combat together),
- * one for equipment and one for psychic powers. A table is left out when it would be empty.
+ * The read-only table for a model: weapons (ranged and close combat together) with their
+ * actions and notes, then equipment and psychic powers, whose notes span the Actions and
+ * Notes columns. A section is left out when it would be empty.
  */
-export function itemTables(m: ModelSpec): HTMLElement[] {
+export function itemTable(m: ModelSpec): HTMLElement | null {
   const weapons = [
     ...m.rangedWeapons.map((id) => weaponRow('ranged', id)),
     ...m.closeWeapons.map((id) => weaponRow('close', id)),
   ];
-  return [
-    weapons.length > 0 ? table(['Weapon', 'Actions', 'Notes'], weapons) : null,
-    m.equipment.length > 0 ? table(['Equipment', 'Notes'], m.equipment.map(equipmentRow)) : null,
-    m.powers.length > 0 ? table(['Psychic power', 'Notes'], m.powers.map(powerRow)) : null,
-  ].filter((t): t is HTMLTableElement => t !== null);
+  const sections = [
+    weapons.length > 0 ? section(['Weapon', 'Actions', 'Notes'], weapons) : [],
+    m.equipment.length > 0 ? section(['Equipment', 'Notes'], m.equipment.map(equipmentRow)) : [],
+    m.powers.length > 0 ? section(['Psychic power', 'Notes'], m.powers.map(powerRow)) : [],
+  ].flat();
+  return sections.length > 0 ? h('table', { class: 'items' }, ...sections) : null;
 }
