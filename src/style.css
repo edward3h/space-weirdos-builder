@@ -181,6 +181,13 @@ td.actions button {
   gap: 2px;
   max-width: 28em;
 }
+#site-footer {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 16px 24px;
+  color: var(--muted);
+  font-size: 0.85em;
+}
 /* ---- Model card, view mode ---- */
 .model-panel .model-name {
   font-size: 1.15em;
@@ -307,7 +314,8 @@ td.actions button {
     max-width: none;
   }
   .no-print,
-  #banner {
+  #banner,
+  #site-footer {
     display: none !important;
   }
   .sheets {

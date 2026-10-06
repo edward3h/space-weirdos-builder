@@ -374,3 +374,20 @@ test('expansion items are not labelled "expansion" in the details', async ({ pag
   await expect(model).toContainText('Psychic Aura');
   await expect(model).not.toContainText(/expansion/i);
 });
+
+test('every screen links back to the GitHub project, except in print', async ({ page }) => {
+  const link = page.getByRole('link', { name: 'Project on GitHub' });
+  await page.goto('/');
+  await expect(link).toHaveAttribute('href', 'https://github.com/edward3h/space-weirdos-builder');
+  await expect(link).toHaveAttribute('rel', /noopener/);
+
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await expect(page.getByLabel('Warband name')).toBeVisible(); // now on the editor
+  await expect(link).toBeVisible();
+
+  await page.getByRole('button', { name: 'Print' }).click();
+  await expect(page.locator('.card').first()).toBeVisible(); // now on the print view
+  await expect(link).toBeVisible();
+  await page.emulateMedia({ media: 'print' });
+  await expect(link).toBeHidden();
+});
