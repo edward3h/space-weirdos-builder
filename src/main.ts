@@ -17,6 +17,8 @@ if (!kv) {
 
 const app = document.querySelector<HTMLElement>('#app')!;
 
+let firstView = true;
+
 function route() {
   flushEditor(); // write any debounced edit before the next view reads storage
   app.replaceChildren();
@@ -28,6 +30,9 @@ function route() {
   } else {
     renderLibrary(app, lib);
   }
+  // Tell screen reader users that the view changed (not on the first load, which they already hear)
+  if (!firstView) app.querySelector<HTMLElement>('h1')?.focus();
+  firstView = false;
 }
 
 window.addEventListener('hashchange', route);

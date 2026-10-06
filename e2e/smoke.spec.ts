@@ -148,7 +148,7 @@ test('a pending edit is saved when the page becomes hidden', async ({ page }) =>
   await page.getByRole('button', { name: 'New warband' }).click();
   await expect(page.getByLabel('Warband name')).toBeVisible();
   const saved = await page.evaluate(() => {
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="Warband name"]')!;
+    const input = document.querySelector<HTMLInputElement>('input[data-warband-name]')!;
     input.value = 'Hidden Save';
     input.dispatchEvent(new Event('input'));
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });

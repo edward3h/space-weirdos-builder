@@ -2,7 +2,7 @@ import { newWarband } from '../model/factory';
 import { warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
 import { showBanner } from './banner';
-import { h } from './dom';
+import { h, setTitle } from './dom';
 
 const SAVE_FAILED = 'Your changes could not be saved. Use Export to keep a copy.';
 
@@ -27,6 +27,7 @@ function download(filename: string, text: string) {
 }
 
 export function renderLibrary(root: HTMLElement, lib: Library): void {
+  setTitle('Warbands');
   const draw = () => {
     root.replaceChildren();
     const { warbands, errors } = lib.list();
@@ -42,7 +43,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
     });
 
     root.append(
-      h('h1', {}, 'Space Weirdos warbands'),
+      h('h1', { tabindex: -1 }, 'Space Weirdos warbands'),
       h(
         'div',
         { class: 'toolbar' },
@@ -89,10 +90,20 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
 
     const table = h('table', { class: 'list' });
     table.append(
-      h('thead', {}, h('tr', {}, ...['Name', 'Points', 'Models', ''].map((t) => h('th', {}, t)))),
+      h(
+        'thead',
+        {},
+        h(
+          'tr',
+          {},
+          ...['Name', 'Points', 'Models'].map((t) => h('th', { scope: 'col' }, t)),
+          h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')),
+        ),
+      ),
     );
     const body = h('tbody');
     for (const wb of warbands) {
+      const label = wb.name || '(unnamed)';
       const total = warbandCost(wb);
       body.append(
         h(
@@ -107,7 +118,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
-                'aria-label': `Print “${wb.name}”`,
+                'aria-label': `Print “${label}”`,
                 onClick: () => (location.hash = `#/wb/${wb.id}/print`),
               },
               'Print',
@@ -115,7 +126,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
-                'aria-label': `Duplicate “${wb.name}”`,
+                'aria-label': `Duplicate “${label}”`,
                 onClick: () => {
                   tryWrite(() => lib.duplicate(wb.id));
                   draw();
@@ -126,7 +137,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
-                'aria-label': `Rename “${wb.name}”`,
+                'aria-label': `Rename “${label}”`,
                 onClick: () => {
                   const name = prompt('Rename warband', wb.name);
                   if (name === null) return;
@@ -140,7 +151,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
-                'aria-label': `Export “${wb.name}”`,
+                'aria-label': `Export “${label}”`,
                 onClick: () => download(`${wb.name || 'warband'}.json`, lib.exportOne(wb.id)!),
               },
               'Export',
@@ -148,9 +159,9 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
             h(
               'button',
               {
-                'aria-label': `Delete “${wb.name}”`,
+                'aria-label': `Delete “${label}”`,
                 onClick: () => {
-                  if (confirm(`Delete “${wb.name}”? This cannot be undone.`)) {
+                  if (confirm(`Delete “${label}”? This cannot be undone.`)) {
                     lib.remove(wb.id);
                     draw();
                   }
