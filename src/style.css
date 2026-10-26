@@ -220,9 +220,15 @@ td.actions button {
 .model-panel .row {
   align-items: center;
 }
+.model-panel .row .duplicate,
 .model-panel .row .edit,
 .model-panel .row .save {
   margin-left: auto;
+}
+/* Duplicate leads the right-hand group; Edit/Save stay furthest right beside it */
+.model-panel .row .duplicate + .edit,
+.model-panel .row .duplicate + .save {
+  margin-left: 0;
 }
 .model-panel .tag {
   font-size: 0.8em;

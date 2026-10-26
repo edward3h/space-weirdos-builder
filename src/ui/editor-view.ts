@@ -486,6 +486,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       'button',
       {
         type: 'button',
+        class: 'duplicate',
         'aria-label': `Duplicate ${m.name || 'model'}`,
         onClick: () => {
           const copy = duplicateModel(m);
