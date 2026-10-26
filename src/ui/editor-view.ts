@@ -12,7 +12,8 @@ import {
 } from '../rules/engine';
 import type { Item } from '../rules/types';
 import type { Library } from '../storage/library';
-import { h, select, selectOnFocus, setTitle } from './dom';
+import { Check, Copy, Pencil, Plus, Printer, Trash2, X } from 'lucide';
+import { h, icon, select, selectOnFocus, setLabel, setTitle } from './dom';
 import { itemFacts } from './item-info';
 import { modelSummary } from './model-summary';
 
@@ -172,12 +173,13 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           {
             type: 'button',
             'aria-label': `Remove ${item?.name ?? id}`,
+            title: `Remove ${item?.name ?? id}`,
             onClick: () => {
               set(get().filter((_, i) => i !== index));
               draw();
             },
           },
-          'Remove',
+          icon(X),
         );
         return h(
           'div',
@@ -221,7 +223,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               box.querySelector<HTMLElement>('select[aria-label^="Choose"]')?.focus();
             },
           },
-          '+',
+          icon(Plus),
         );
       }
       box.replaceChildren(...rows, adder);
@@ -299,29 +301,31 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         type: 'button',
         class: 'primary save',
         'aria-label': saveLabel(),
+        title: saveLabel(),
         onClick: () => {
           editing.delete(m);
           flush(); // write a pending name edit before the card is redrawn
           swap(m, 'button.edit');
         },
       },
-      'Save',
+      icon(Check),
     );
     const removeLabel = () => `Remove ${m.name || 'model'}`;
     const removeButton = h(
       'button',
       {
         'aria-label': removeLabel(),
+        title: removeLabel(),
         onClick: () => {
           state.models = state.models.filter((x) => x !== m);
           changed();
         },
       },
-      'Remove',
+      icon(Trash2),
     );
     nameInput.addEventListener('input', () => {
-      saveButton.setAttribute('aria-label', saveLabel());
-      removeButton.setAttribute('aria-label', removeLabel());
+      setLabel(saveButton, saveLabel());
+      setLabel(removeButton, removeLabel());
     });
 
     const el = h(
@@ -462,12 +466,13 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
             type: 'button',
             class: 'edit',
             'aria-label': `Edit ${m.name || 'model'}`,
+            title: `Edit ${m.name || 'model'}`,
             onClick: () => {
               editing.add(m);
               swap(m, 'input[data-model-name]');
             },
           },
-          'Edit',
+          icon(Pencil),
         ),
       ),
       modelSummary(m),
@@ -485,6 +490,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         type: 'button',
         class: 'duplicate',
         'aria-label': `Duplicate ${m.name || 'model'}`,
+        title: `Duplicate ${m.name || 'model'}`,
         onClick: () => {
           const copy = duplicateModel(m);
           state.models.splice(state.models.indexOf(m) + 1, 0, copy);
@@ -493,7 +499,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
           panels.get(copy)?.el.querySelector<HTMLElement>('input[data-model-name]')?.focus();
         },
       },
-      'Duplicate',
+      icon(Copy),
     );
   }
 
@@ -570,6 +576,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               location.hash = `#/wb/${state.id}/print`;
             },
           },
+          icon(Printer),
           'Print',
         ),
       ),
@@ -618,6 +625,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               panels.get(added)?.el.querySelector<HTMLElement>('input[data-model-name]')?.focus();
             },
           },
+          icon(Plus),
           'Add model',
         ),
       ),

@@ -1,3 +1,5 @@
+import { createElement, type IconNode } from 'lucide';
+
 type Child = Node | string | null | false | undefined;
 
 const APP_TITLE = 'Space Weirdos Builder';
@@ -52,4 +54,15 @@ export function selectOnFocus<T extends HTMLInputElement>(input: T): T {
     fresh = false;
   });
   return input;
+}
+
+/** A decorative icon: the button it sits in carries the name, so screen readers skip it. */
+export function icon(node: IconNode): SVGElement {
+  return createElement(node, { class: 'icon', 'aria-hidden': 'true' });
+}
+
+/** Keep an icon-only button's tooltip in step with its accessible name. */
+export function setLabel(button: HTMLElement, label: string): void {
+  button.setAttribute('aria-label', label);
+  button.title = label;
 }

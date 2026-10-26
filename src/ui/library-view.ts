@@ -2,7 +2,8 @@ import { newWarband } from '../model/factory';
 import { warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
 import { showBanner } from './banner';
-import { h, setTitle } from './dom';
+import { Copy, Download, PenLine, Plus, Printer, Trash2, Upload } from 'lucide';
+import { h, icon, setTitle } from './dom';
 
 const SAVE_FAILED = 'Your changes could not be saved. Use Export to keep a copy.';
 
@@ -57,15 +58,17 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
               location.hash = `#/wb/${wb.id}`;
             },
           },
+          icon(Plus),
           'New warband',
         ),
-        h('button', { onClick: () => fileInput.click() }, 'Import JSON'),
+        h('button', { onClick: () => fileInput.click() }, icon(Upload), 'Import JSON'),
         h(
           'button',
           {
             disabled: warbands.length === 0,
             onClick: () => download('space-weirdos-warbands.json', lib.exportAll()),
           },
+          icon(Download),
           'Export all',
         ),
         fileInput,
@@ -119,25 +122,28 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
               'button',
               {
                 'aria-label': `Print “${label}”`,
+                title: `Print “${label}”`,
                 onClick: () => (location.hash = `#/wb/${wb.id}/print`),
               },
-              'Print',
+              icon(Printer),
             ),
             h(
               'button',
               {
                 'aria-label': `Duplicate “${label}”`,
+                title: `Duplicate “${label}”`,
                 onClick: () => {
                   tryWrite(() => lib.duplicate(wb.id));
                   draw();
                 },
               },
-              'Duplicate',
+              icon(Copy),
             ),
             h(
               'button',
               {
                 'aria-label': `Rename “${label}”`,
+                title: `Rename “${label}”`,
                 onClick: () => {
                   const name = prompt('Rename warband', wb.name);
                   if (name === null) return;
@@ -146,20 +152,22 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
                   draw();
                 },
               },
-              'Rename',
+              icon(PenLine),
             ),
             h(
               'button',
               {
                 'aria-label': `Export “${label}”`,
+                title: `Export “${label}”`,
                 onClick: () => download(`${wb.name || 'warband'}.json`, lib.exportOne(wb.id)!),
               },
-              'Export',
+              icon(Download),
             ),
             h(
               'button',
               {
                 'aria-label': `Delete “${label}”`,
+                title: `Delete “${label}”`,
                 onClick: () => {
                   if (confirm(`Delete “${label}”? This cannot be undone.`)) {
                     lib.remove(wb.id);
@@ -167,7 +175,7 @@ export function renderLibrary(root: HTMLElement, lib: Library): void {
                   }
                 },
               },
-              'Delete',
+              icon(Trash2),
             ),
           ),
         ),

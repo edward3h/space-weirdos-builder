@@ -450,3 +450,21 @@ test('Duplicate adds an editable copy after the original and flags an over-budge
   // Over budget is allowed, and shown
   await expect(page.locator('[data-total]')).toHaveClass(/over/);
 });
+
+test('icon-only buttons keep a name and tooltip; page buttons keep their text', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const newWarband = page.getByRole('button', { name: 'New warband' });
+  await expect(newWarband).toHaveText('New warband');
+  await expect(newWarband.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+  await newWarband.click();
+  await page.getByLabel('Model name').first().fill('Gunner');
+  const save = page.getByRole('button', { name: 'Save Gunner' });
+  await expect(save).toHaveText('');
+  await expect(save).toHaveAttribute('title', 'Save Gunner');
+  await save.click();
+  const edit = page.getByRole('button', { name: 'Edit Gunner' });
+  await expect(edit).toHaveText('');
+  await expect(edit.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+});
