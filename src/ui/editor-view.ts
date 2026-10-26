@@ -12,7 +12,7 @@ import {
 } from '../rules/engine';
 import type { Item } from '../rules/types';
 import type { Library } from '../storage/library';
-import { h, select, setTitle } from './dom';
+import { h, select, selectOnFocus, setTitle } from './dom';
 import { itemFacts } from './item-info';
 import { modelSummary } from './model-summary';
 
@@ -282,7 +282,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     ] as ModelSpec['firepower'][];
     const field = (label: string, el: Node) => h('label', {}, label, el);
 
-    const nameInput = h('input', { value: m.name, 'data-model-name': true });
+    const nameInput = selectOnFocus(h('input', { value: m.name, 'data-model-name': true }));
     const heading = h('h2', { class: 'sr-only' }, m.name || 'Unnamed');
     nameInput.addEventListener('input', () => {
       m.name = nameInput.value;
@@ -494,7 +494,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     panels.clear();
     const ctx = contextOf(state);
 
-    const nameInput = h('input', { value: state.name, 'data-warband-name': true });
+    const nameInput = selectOnFocus(h('input', { value: state.name, 'data-warband-name': true }));
     const heading = h('h1', { tabindex: -1 }, state.name || 'Unnamed warband');
     setTitle(`Edit ${state.name || 'unnamed warband'}`);
     nameInput.addEventListener('input', () => {
@@ -503,13 +503,15 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       setTitle(`Edit ${state.name || 'unnamed warband'}`);
       save();
     });
-    const targetInput = h('input', {
-      type: 'text',
-      inputmode: 'numeric',
-      list: 'targets',
-      value: String(state.target),
-      style: 'width:6em',
-    });
+    const targetInput = selectOnFocus(
+      h('input', {
+        type: 'text',
+        inputmode: 'numeric',
+        list: 'targets',
+        value: String(state.target),
+        style: 'width:6em',
+      }),
+    );
     targetInput.addEventListener('input', () => {
       // Keep the previous target while the field is empty or not a positive whole number
       const text = targetInput.value.trim();

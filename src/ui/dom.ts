@@ -35,3 +35,21 @@ export function select<T extends string>(
   el.value = value;
   return el;
 }
+
+/** Select the whole text when the field gains focus, so typing replaces the existing value. */
+export function selectOnFocus<T extends HTMLInputElement>(input: T): T {
+  let fresh = false;
+  input.addEventListener('focus', () => {
+    input.select();
+    fresh = true;
+  });
+  // Some browsers collapse the selection on the mouseup that follows a click-to-focus
+  input.addEventListener('mouseup', (e) => {
+    if (fresh) e.preventDefault();
+    fresh = false;
+  });
+  input.addEventListener('blur', () => {
+    fresh = false;
+  });
+  return input;
+}
