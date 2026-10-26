@@ -1,4 +1,4 @@
-import { isPristine, newModel } from '../model/factory';
+import { duplicateModel, isPristine, newModel } from '../model/factory';
 import type { ModelSpec, Warband } from '../model/types';
 import { available, catalog, lookup } from '../rules/catalog';
 import {
@@ -455,6 +455,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         m.isLeader && h('span', { class: 'tag' }, trait ? `Leader · ${trait.name}` : 'Leader'),
         m.powerful && h('span', { class: 'tag' }, 'Powerful'),
         costEl,
+        duplicateButton(m),
         h(
           'button',
           {
@@ -474,6 +475,26 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     );
     panels.set(m, { el, cost: costEl, warnings: warningsEl });
     return el;
+  }
+
+  /** Add a copy of a model straight after the original, open for editing. */
+  function duplicateButton(m: ModelSpec) {
+    return h(
+      'button',
+      {
+        type: 'button',
+        class: 'duplicate',
+        'aria-label': `Duplicate ${m.name || 'model'}`,
+        onClick: () => {
+          const copy = duplicateModel(m);
+          state.models.splice(state.models.indexOf(m) + 1, 0, copy);
+          editing.add(copy);
+          changed();
+          panels.get(copy)?.el.querySelector<HTMLElement>('input[data-model-name]')?.focus();
+        },
+      },
+      'Duplicate',
+    );
   }
 
   const modelPanel = (m: ModelSpec, ctx: Context) =>

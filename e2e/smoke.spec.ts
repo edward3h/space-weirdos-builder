@@ -420,3 +420,33 @@ test('focusing a text field selects its whole value', async ({ page }) => {
     expect(selected).toBe(true);
   }
 });
+
+test('Duplicate adds an editable copy after the original and flags an over-budget warband', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  await page.getByLabel('Points target').fill('1');
+  const first = page.locator('.model-panel').first();
+  await first.getByLabel('Model name').fill('Gunner');
+  await addItem(first, 'ranged weapon', 'shotgun');
+  await first.getByRole('button', { name: 'Save Gunner' }).click();
+
+  await first.getByRole('button', { name: 'Edit Gunner' }).click();
+  await expect(first.getByRole('button', { name: /^Duplicate/ })).toHaveCount(0);
+  await first.getByRole('button', { name: 'Save Gunner' }).click();
+
+  await first.getByRole('button', { name: 'Duplicate Gunner' }).click();
+  const panels = page.locator('.model-panel');
+  await expect(panels).toHaveCount(2);
+  // The copy follows the original, is in edit mode with its name selected, and is no leader
+  const copy = panels.nth(1);
+  await expect(copy.getByLabel('Model name')).toHaveValue('Gunner (copy)');
+  await expect(copy.getByLabel('Model name')).toBeFocused();
+  await expect(copy.getByLabel('Ranged weapon 1', { exact: true })).toHaveValue('shotgun');
+  await expect(copy.getByLabel('Leader')).not.toBeChecked();
+  await expect(first).toContainText('Gunner');
+  await expect(first.getByLabel('Model name')).toHaveCount(0);
+  // Over budget is allowed, and shown
+  await expect(page.locator('[data-total]')).toHaveClass(/over/);
+});

@@ -47,3 +47,16 @@ export function isPristine(m: ModelSpec): boolean {
     (k) => JSON.stringify(mine[k]) === JSON.stringify(base[k]),
   );
 }
+
+/**
+ * A copy of a model with its own id, for adding to the same warband. The copy is never a
+ * leader (a warband has one) and is named "<name> (copy)".
+ */
+export function duplicateModel(m: ModelSpec): ModelSpec {
+  const copy: ModelSpec = structuredClone(m);
+  copy.id = newId();
+  copy.name = m.name ? `${m.name} (copy)` : m.name;
+  copy.isLeader = false;
+  copy.leaderTrait = null;
+  return copy;
+}

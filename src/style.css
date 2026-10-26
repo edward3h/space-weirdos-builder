@@ -224,6 +224,13 @@ td.actions button {
 .model-panel .row .save {
   margin-left: auto;
 }
+/* Duplicate leads the right-hand group; Edit stays furthest right beside it */
+.model-panel .row .duplicate {
+  margin-left: auto;
+}
+.model-panel .row .duplicate + .edit {
+  margin-left: 0;
+}
 .model-panel .tag {
   font-size: 0.8em;
   text-transform: uppercase;
