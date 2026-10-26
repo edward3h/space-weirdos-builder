@@ -2,7 +2,8 @@ import type { ModelSpec, Warband } from '../model/types';
 import { lookup } from '../rules/catalog';
 import { contextOf, displayCost, displayStats, warbandCost } from '../rules/engine';
 import type { Library } from '../storage/library';
-import { h, setTitle } from './dom';
+import { Printer } from 'lucide';
+import { h, icon, setTitle } from './dom';
 import { itemTable } from './item-tables';
 
 const MIN_FONT_PX = 8;
@@ -119,7 +120,7 @@ export function renderPrint(root: HTMLElement, lib: Library, id: string): void {
       h('a', { href: `#/wb/${wb.id}` }, '← Back to editor'),
       h('span', { class: 'spacer' }),
       status,
-      h('button', { class: 'primary', onClick: () => window.print() }, 'Print'),
+      h('button', { class: 'primary', onClick: () => window.print() }, icon(Printer), 'Print'),
     ),
     h(
       'p',
