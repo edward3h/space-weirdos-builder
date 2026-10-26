@@ -432,6 +432,10 @@ test('Duplicate adds an editable copy after the original and flags an over-budge
   await addItem(first, 'ranged weapon', 'shotgun');
   await first.getByRole('button', { name: 'Save Gunner' }).click();
 
+  await first.getByRole('button', { name: 'Edit Gunner' }).click();
+  await expect(first.getByRole('button', { name: /^Duplicate/ })).toHaveCount(0);
+  await first.getByRole('button', { name: 'Save Gunner' }).click();
+
   await first.getByRole('button', { name: 'Duplicate Gunner' }).click();
   const panels = page.locator('.model-panel');
   await expect(panels).toHaveCount(2);

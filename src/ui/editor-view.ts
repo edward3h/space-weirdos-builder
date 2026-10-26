@@ -319,11 +319,9 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
       },
       'Remove',
     );
-    const duplicate = duplicateButton(m);
     nameInput.addEventListener('input', () => {
       saveButton.setAttribute('aria-label', saveLabel());
       removeButton.setAttribute('aria-label', removeLabel());
-      duplicate.setAttribute('aria-label', `Duplicate ${m.name || 'model'}`);
     });
 
     const el = h(
@@ -346,7 +344,6 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
             changed();
           }),
         removeButton,
-        duplicate,
         saveButton,
       ),
       m.isLeader &&
