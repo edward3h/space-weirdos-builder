@@ -406,3 +406,17 @@ test('every screen links back to the GitHub project, except in print', async ({ 
   await page.emulateMedia({ media: 'print' });
   await expect(link).toBeHidden();
 });
+
+test('focusing a text field selects its whole value', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  for (const label of ['Warband name', 'Model name']) {
+    const field = page.getByLabel(label).first();
+    await field.focus();
+    const selected = await field.evaluate(
+      (el: HTMLInputElement) =>
+        el.value.length > 0 && el.selectionStart === 0 && el.selectionEnd === el.value.length,
+    );
+    expect(selected).toBe(true);
+  }
+});
