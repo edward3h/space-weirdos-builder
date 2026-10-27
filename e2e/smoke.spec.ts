@@ -468,3 +468,28 @@ test('icon-only buttons keep a name and tooltip; page buttons keep their text', 
   await expect(edit).toHaveText('');
   await expect(edit.locator('svg[aria-hidden="true"]')).toHaveCount(1);
 });
+
+test('the warband name, target and trait headings stay level whatever the trait text', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New warband' }).click();
+  const tops = async () =>
+    page.evaluate(() => {
+      const top = (text: string) =>
+        [...document.querySelectorAll('.warband-head > label')]
+          .find((l) => l.firstChild?.textContent === text)!
+          .getBoundingClientRect().top;
+      return [top('Warband name'), top('Points target'), top('Warband trait')];
+    });
+  const traitSelect = page.locator('.warband-head .trait select');
+  await expect(traitSelect).toBeVisible(); // .all() does not wait
+  const options = await traitSelect.locator('option').all();
+  expect(options.length).toBeGreaterThan(2);
+  for (const o of options.slice(0, 3)) {
+    await traitSelect.selectOption({ value: (await o.getAttribute('value'))! });
+    const [name, target, trait] = await tops();
+    expect(target).toBe(name);
+    expect(trait).toBe(name);
+  }
+});

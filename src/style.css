@@ -137,6 +137,23 @@ button.primary {
   align-items: center;
   gap: 6px;
 }
+/* Headings line up at the top; a tall trait description only extends downwards */
+.row.warband-head {
+  align-items: start;
+}
+.aligned {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.aligned .label-spacer {
+  font-size: 0.85em;
+}
+.aligned > :last-child {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+}
 .warnings {
   margin: 6px 0 0;
   padding-left: 20px;

@@ -263,6 +263,15 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
     return h('label', { class: 'inline' }, box, label);
   };
 
+  /** Sit a control level with the inputs of its labelled neighbours, whatever their height. */
+  const alignedWithFields = (control: HTMLElement) =>
+    h(
+      'div',
+      { class: 'aligned' },
+      h('span', { class: 'label-spacer', 'aria-hidden': 'true' }, '\u00a0'),
+      control,
+    );
+
   function editPanel(m: ModelSpec, ctx: Context) {
     const dieSelect = <T extends string>(opts: readonly T[], value: T, set: (v: T) => void) =>
       select(
@@ -585,7 +594,7 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
         { class: 'panel' },
         h(
           'div',
-          { class: 'row' },
+          { class: 'row warband-head' },
           h('label', {}, 'Warband name', nameInput),
           h('label', {}, 'Points target', targetInput),
           h(
@@ -593,10 +602,12 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
             { id: 'targets' },
             ...TARGET_PRESETS.map((n) => h('option', { value: String(n) })),
           ),
-          toggle('Include fan expansion', state.expansion, (v) => {
-            state.expansion = v;
-            changed();
-          }),
+          alignedWithFields(
+            toggle('Include fan expansion', state.expansion, (v) => {
+              state.expansion = v;
+              changed();
+            }),
+          ),
           h(
             'label',
             {},
@@ -606,7 +617,9 @@ export function renderEditor(root: HTMLElement, lib: Library, id: string): void 
               changed();
             }),
           ),
-          h('span', { class: 'total', 'data-total': true, 'aria-live': 'polite' }),
+          alignedWithFields(
+            h('span', { class: 'total', 'data-total': true, 'aria-live': 'polite' }),
+          ),
         ),
         h('ul', { class: 'warnings', 'data-warband-warnings': true, 'aria-live': 'polite' }),
       ),
